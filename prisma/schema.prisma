@@ -1,0 +1,311 @@
+// Dr. CBJ Mental Wellness App - Prisma Schema
+// SQLite for local development, PostgreSQL-ready for production
+// Switch to PostgreSQL by changing the datasource provider and DATABASE_URL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ============ AUTH & USERS ============
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String
+  role          Role      @default(CLIENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile          Profile?
+  appointments     Appointment[]
+  intakeForms      IntakeForm[]
+  messages         Message[]
+  journalEntries   JournalEntry[]
+  moodEntries      MoodEntry[]
+  gratitudeEntries GratitudeEntry[]
+  dailyReflections DailyReflection[]
+  chatSessions     ChatSession[]
+  accounts         Account[]
+  sessions         Session[]
+  adminActivities  AdminActivityLog[] @relation("AdminActor")
+  notifications Notification[]
+}
+
+enum Role {
+  VISITOR
+  CLIENT
+  ADMIN
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============ PROFILES ============
+
+model Profile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  fullName          String
+  dateOfBirth       DateTime?
+  phone             String?
+  emergencyContact  String?
+  address           String?
+  isReturningClient Boolean  @default(false)
+  preferredContact  String?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ APPOINTMENTS ============
+
+model Appointment {
+  id                String            @id @default(cuid())
+  userId            String?
+  fullName          String
+  dateOfBirth       DateTime?
+  phone             String
+  email             String
+  emergencyContact  String?
+  preferredDate     DateTime
+  preferredTime     String
+  sessionType       String
+  sessionMode       String            @map("deliveryMode")
+  notes             String?           @map("reasonForVisit")
+  isReturningClient Boolean           @default(false)
+  status            AppointmentStatus @default(PENDING)
+  adminNotes        String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+// ============ INTAKE FORMS ============
+
+model IntakeForm {
+  id                String   @id @default(cuid())
+  userId            String
+  fullName          String
+  dateOfBirth       DateTime?
+  phone             String
+  email             String
+  emergencyContact  String?
+  reasonForVisit    String
+  currentSymptoms   String?
+  medications       String?
+  previousTreatment String?
+  goals             String?
+  consentGiven      Boolean  @default(false)
+  status            String   @default("SUBMITTED")
+  submittedAt       DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ MESSAGES & ANNOUNCEMENTS ============
+
+model Message {
+  id        String   @id @default(cuid())
+  userId    String
+  subject   String
+  body      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============ WELLNESS TOOLS ============
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String?
+  content   String
+  mood      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MoodEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  mood      String
+  intensity Int      @default(3)
+  note      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GratitudeEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DailyReflection {
+  id        String   @id @default(cuid())
+  userId    String
+  content   String
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ CONTENT ============
+
+model Testimonial {
+  id          String   @id @default(cuid())
+  clientName  String
+  displayName String?
+  content     String
+  rating      Int?
+  isApproved  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FaqItem {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WellnessResource {
+  id        String   @id @default(cuid())
+  title     String
+  category  String
+  type      String
+  content   String
+  summary   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============ AI CHAT ============
+
+model ChatSession {
+  id          String        @id @default(cuid())
+  userId      String?
+  isAnonymous Boolean       @default(false)
+  title       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user     User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  messages ChatMessage[]
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String
+  content   String
+  isCrisis  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// ============ SETTINGS & AUDIT ============
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model AdminActivityLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  admin User @relation("AdminActor", fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

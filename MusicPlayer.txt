@@ -1,0 +1,182 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+export default function MusicPlayer() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.3);
+  const [isMuted, setIsMuted] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Load saved preferences
+  useEffect(() => {
+    const savedVolume = localStorage.getItem("music-volume");
+    const savedPlaying = localStorage.getItem("music-playing");
+    if (savedVolume) setVolume(parseFloat(savedVolume));
+    if (savedPlaying === "true") {
+      setIsPlaying(true);
+    }
+  }, []);
+
+  // Save preferences
+  useEffect(() => {
+    localStorage.setItem("music-volume", volume.toString());
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = isMuted ? 0 : volume;
+    }
+  }, [volume, isMuted]);
+
+  useEffect(() => {
+    localStorage.setItem("music-playing", isPlaying.toString());
+  }, [isPlaying]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) window.clearInterval(timerRef.current);
+      if (audioContextRef.current) audioContextRef.current.close();
+    };
+  }, []);
+
+  const initAudio = () => {
+    if (!audioContextRef.current) {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      audioContextRef.current = new AudioCtx();
+      gainNodeRef.current = audioContextRef.current.createGain();
+      gainNodeRef.current.gain.value = isMuted ? 0 : volume;
+      gainNodeRef.current.connect(audioContextRef.current.destination);
+    }
+  };
+
+  const playNote = (freq: number, duration: number, delay = 0) => {
+    if (!audioContextRef.current || !gainNodeRef.current) return;
+    const ctx = audioContextRef.current;
+    const osc = ctx.createOscillator();
+    const noteGain = ctx.createGain();
+    const startTime = ctx.currentTime + delay;
+
+    osc.type = "sine";
+    osc.frequency.value = freq;
+
+    noteGain.gain.setValueAtTime(0, startTime);
+    noteGain.gain.linearRampToValueAtTime(0.15, startTime + 0.05);
+    noteGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+    osc.connect(noteGain);
+    noteGain.connect(gainNodeRef.current);
+
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.1);
+  };
+
+  const playPianoLoop = () => {
+    if (!audioContextRef.current) return;
+
+    // Soft piano melody (C major pentatonic - calming)
+    const notes = [
+      { freq: 261.63, dur: 1.5 }, // C4
+      { freq: 329.63, dur: 1.5 }, // E4
+      { freq: 392.0, dur: 1.5 },  // G4
+      { freq: 329.63, dur: 1.5 }, // E4
+      { freq: 293.66, dur: 1.5 }, // D4
+      { freq: 349.23, dur: 1.5 }, // F4
+      { freq: 440.0, dur: 2.0 },  // A4
+      { freq: 349.23, dur: 1.5 }, // F4
+      { freq: 261.63, dur: 1.5 }, // C4
+      { freq: 329.63, dur: 1.5 }, // E4
+      { freq: 392.0, dur: 1.5 },  // G4
+      { freq: 523.25, dur: 2.0 }, // C5
+    ];
+
+    let time = 0;
+    notes.forEach((note, i) => {
+      playNote(note.freq, note.dur, time);
+      // Add a soft harmony note
+      playNote(note.freq * 1.5, note.dur * 0.8, time + 0.1);
+      time += note.dur * 0.8;
+    });
+
+    // Schedule next loop
+    timerRef.current = window.setTimeout(playPianoLoop, time * 1000);
+  };
+
+  const togglePlay = () => {
+    initAudio();
+    if (audioContextRef.current?.state === "suspended") {
+      audioContextRef.current.resume();
+    }
+
+    if (!isPlaying) {
+      setIsPlaying(true);
+      playPianoLoop();
+    } else {
+      setIsPlaying(false);
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+  };
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50">
+      {isOpen && (
+        <div className="bg-white rounded-2xl shadow-xl p-4 mb-2 w-64 animate-fade-in">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-semibold text-teal-900">Soft Piano</p>
+              <p className="text-xs text-gray-500">Calming background music</p>
+            </div>
+            <button
+              onClick={toggleMute}
+              className="text-gray-500 hover:text-teal-600 transition-colors"
+              aria-label={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? "🔇" : "🔊"}
+            </button>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            className="w-full accent-teal-600"
+            aria-label="Volume"
+          />
+          <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+            <span>Volume</span>
+            <span>{Math.round(volume * 100)}%</span>
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="bg-teal-600 text-white rounded-full p-3 shadow-lg hover:bg-teal-700 transition-all mr-2"
+        aria-label="Music settings"
+      >
+        🎵
+      </button>
+      <button
+        onClick={togglePlay}
+        className={`rounded-full p-3 shadow-lg transition-all ${
+          isPlaying
+            ? "bg-teal-600 text-white hover:bg-teal-700"
+            : "bg-white text-teal-600 hover:bg-teal-50"
+        }`}
+        aria-label={isPlaying ? "Pause music" : "Play music"}
+      >
+        {isPlaying ? "⏸" : "▶"}
+      </button>
+    </div>
+  );
+}
