@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { AppointmentStatus } from "@prisma/client";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import AppointmentActions from "@/components/admin/AppointmentActions";
@@ -29,10 +30,10 @@ export default async function AdminPage() {
     ],
   });
 
-  const pending = appointments.filter((a) => a.status === "PENDING").length;
-  const confirmed = appointments.filter((a) => a.status === "CONFIRMED").length;
-  const completed = appointments.filter((a) => a.status === "COMPLETED").length;
-  const cancelled = appointments.filter((a) => a.status === "CANCELLED").length;
+  const pending = appointments.filter((a: { status: AppointmentStatus }) => a.status === "PENDING").length;
+  const confirmed = appointments.filter((a: { status: AppointmentStatus }) => a.status === "CONFIRMED").length;
+  const completed = appointments.filter((a: { status: AppointmentStatus }) => a.status === "COMPLETED").length;
+  const cancelled = appointments.filter((a: { status: AppointmentStatus }) => a.status === "CANCELLED").length;
 
   return (
     <div className="py-12">
