@@ -143,7 +143,7 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-teal-800 mt-8 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-teal-300">
+          <p className="text-xs text-teal-300 self-stretch text-left md:self-auto">
             <span className="block">Created by Rayan Omarí Davy</span>
             (c) {new Date().getFullYear()} Dr. CBJ Mental Wellness. All rights reserved.
           </p>
