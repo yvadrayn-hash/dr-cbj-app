@@ -144,6 +144,7 @@ export default function Footer() {
 
         <div className="border-t border-teal-800 mt-8 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-xs text-teal-300">
+            <span className="block">Created by Rayan Omarí Davy</span>
             (c) {new Date().getFullYear()} Dr. CBJ Mental Wellness. All rights reserved.
           </p>
 
@@ -155,3 +156,4 @@ export default function Footer() {
     </footer>
   );
 }
+

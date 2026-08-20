@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 
 export default function RegisterForm() {
   const router = useRouter();
@@ -118,6 +119,22 @@ export default function RegisterForm() {
 
       <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-50">
         {loading ? "Creating account..." : "Create Account"}
+      </button>
+
+      <div className="flex items-center gap-3 text-sm text-gray-500">
+        <div className="h-px flex-1 bg-gray-200" />
+        <span>OR</span>
+        <div className="h-px flex-1 bg-gray-200" />
+      </div>
+
+      <button
+        type="button"
+        className="btn-secondary w-full"
+        onClick={async () => {
+          await signIn("google", { callbackUrl: "/dashboard" });
+        }}
+      >
+        Continue with Google
       </button>
     </form>
   );
