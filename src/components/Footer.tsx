@@ -148,7 +148,7 @@ export default function Footer() {
             (c) {new Date().getFullYear()} Dr. CBJ Mental Wellness. All rights reserved.
           </p>
 
-          <p className="text-xs text-teal-300">
+          <p className="text-xs text-teal-300 self-stretch text-left md:self-auto">
             ... of Manor Group Health<span className="text-amber-400 font-semibold">+</span> - {siteConfig.phone}
           </p>
         </div>
