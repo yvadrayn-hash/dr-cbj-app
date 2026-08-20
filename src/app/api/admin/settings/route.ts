@@ -24,10 +24,17 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Admin not found" }, { status: 404 });
   }
 
-  const passwordValid = await bcrypt.compare(
-    currentPassword,
-    admin.passwordHash
+  if (!admin.passwordHash) {
+  return NextResponse.json(
+    { error: "Password login is not configured for this account" },
+    { status: 400 }
   );
+}
+
+const passwordValid = await bcrypt.compare(
+  currentPassword,
+  admin.passwordHash
+);
 
   if (!passwordValid) {
     return NextResponse.json(
