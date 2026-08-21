@@ -8,10 +8,16 @@ const invoiceItemSchema = z.object({
   description: z.string().min(1, "Item description is required"),
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
   unitPrice: z.number().min(0, "Unit price is required"),
+  employeeId: z.string().optional(),
+  appointmentId: z.string().optional(),
+  sessionDate: z.string().optional(),
+  serviceType: z.string().optional(),
+  note: z.string().optional(),
 });
 
 const createInvoiceSchema = z.object({
   userId: z.string().optional(),
+  companyId: z.string().optional(),
   appointmentId: z.string().optional(),
   description: z.string().optional(),
   discount: z.number().min(0).default(0),
@@ -67,6 +73,7 @@ export async function POST(request: Request) {
 
     const {
       userId,
+      companyId,
       appointmentId,
       description,
       discount,
@@ -74,6 +81,21 @@ export async function POST(request: Request) {
       dueDate,
       items,
     } = parsed.data;
+
+    // Corporate invoices must reference a valid company; individual
+    // invoices must reference a valid client when one is supplied.
+    if (companyId) {
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { id: true },
+      });
+      if (!company) {
+        return NextResponse.json(
+          { error: "Company not found" },
+          { status: 400 }
+        );
+      }
+    }
 
     // Calculate subtotal from items
     const subtotal = items.reduce(
@@ -93,7 +115,8 @@ export async function POST(request: Request) {
       const created = await tx.invoice.create({
         data: {
           invoiceNumber,
-          userId: userId || null,
+          userId: companyId ? null : userId || null,
+          companyId: companyId || null,
           appointmentId: appointmentId || null,
           description: description || null,
           subtotal,
@@ -108,13 +131,21 @@ export async function POST(request: Request) {
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               amount: item.quantity * item.unitPrice,
+              employeeId: item.employeeId || null,
+              appointmentId: item.appointmentId || null,
+              sessionDate: item.sessionDate ? new Date(item.sessionDate) : null,
+              serviceType: item.serviceType || null,
+              note: item.note || null,
             })),
           },
         },
         include: {
-          items: true,
+          items: {
+            include: { employee: { select: { id: true, name: true } } },
+          },
           payments: true,
           user: true,
+          company: true,
           appointment: true,
         },
       });

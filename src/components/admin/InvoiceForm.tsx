@@ -3,41 +3,65 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-type ClientOption = {
+type ClientOption = { id: string; name: string; email: string };
+
+type CompanyOption = {
   id: string;
-  name: string;
-  email: string;
+  companyName: string;
+  employees: { id: string; name: string; email: string }[];
 };
 
 type LineItem = {
   description: string;
   quantity: number;
   unitPrice: string;
+  employeeId: string;
+  sessionDate: string;
+  serviceType: string;
+  note: string;
 };
 
-const emptyItem: LineItem = { description: "", quantity: 1, unitPrice: "" };
+const emptyItem = (): LineItem => ({
+  description: "",
+  quantity: 1,
+  unitPrice: "",
+  employeeId: "",
+  sessionDate: "",
+  serviceType: "Therapy Session",
+  note: "",
+});
 
 export default function InvoiceForm({
   clients,
+  companies,
+  preselectCompanyId,
 }: {
   clients: ClientOption[];
+  companies: CompanyOption[];
+  preselectCompanyId?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // "individual" bills one client; "corporate" bills a company
+  const [mode, setMode] = useState<"individual" | "corporate">(
+    preselectCompanyId ? "corporate" : "individual"
+  );
   const [userId, setUserId] = useState("");
+  const [companyId, setCompanyId] = useState(preselectCompanyId ?? "");
   const [dueDate, setDueDate] = useState("");
   const [discount, setDiscount] = useState("0");
-  const [items, setItems] = useState<LineItem[]>([{ ...emptyItem }]);
+  const [items, setItems] = useState<LineItem[]>([emptyItem()]);
+
+  const selectedCompany = companies.find((c) => c.id === companyId);
 
   const subtotal = useMemo(
     () =>
       items.reduce(
         (sum, item) =>
-          sum +
-          (Number(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0),
+          sum + (Number(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0),
         0
       ),
     [items]
@@ -51,10 +75,12 @@ export default function InvoiceForm({
   }
 
   function reset() {
+    setMode(preselectCompanyId ? "corporate" : "individual");
     setUserId("");
+    setCompanyId(preselectCompanyId ?? "");
     setDueDate("");
     setDiscount("0");
-    setItems([{ ...emptyItem }]);
+    setItems([emptyItem()]);
     setError(null);
   }
 
@@ -67,12 +93,28 @@ export default function InvoiceForm({
       return;
     }
 
+    if (mode === "corporate" && !companyId) {
+      setError("Please select a company for a corporate invoice.");
+      return;
+    }
+
     const payloadItems = items
-      .filter((item) => item.description.trim() && parseFloat(item.unitPrice) >= 0)
+      .filter(
+        (item) =>
+          item.description.trim() && parseFloat(item.unitPrice) >= 0
+      )
       .map((item) => ({
         description: item.description.trim(),
         quantity: Number(item.quantity) || 1,
         unitPrice: parseFloat(item.unitPrice) || 0,
+        employeeId:
+          mode === "corporate" && item.employeeId ? item.employeeId : undefined,
+        sessionDate: mode === "corporate" && item.sessionDate ? item.sessionDate : undefined,
+        serviceType:
+          mode === "corporate" && item.serviceType.trim()
+            ? item.serviceType.trim()
+            : undefined,
+        note: mode === "corporate" && item.note.trim() ? item.note.trim() : undefined,
       }));
 
     if (payloadItems.length === 0) {
@@ -86,7 +128,8 @@ export default function InvoiceForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: userId || undefined,
+          userId: mode === "individual" && userId ? userId : undefined,
+          companyId: mode === "corporate" ? companyId : undefined,
           discount: parseFloat(discount) || 0,
           currency: "USD",
           dueDate,
@@ -134,24 +177,83 @@ export default function InvoiceForm({
         </button>
       </div>
 
+      {/* Recipient type */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        <button
+          type="button"
+          onClick={() => setMode("individual")}
+          className={`rounded-lg px-4 py-2 text-sm font-semibold border transition-colors ${
+            mode === "individual"
+              ? "bg-teal-600 text-white border-teal-600"
+              : "border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          Individual Client
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("corporate")}
+          className={`rounded-lg px-4 py-2 text-sm font-semibold border transition-colors ${
+            mode === "corporate"
+              ? "bg-teal-600 text-white border-teal-600"
+              : "border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          Company (Corporate)
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Client
-          </label>
-          <select
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
-          >
-            <option value="">No linked account</option>
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.name} ({client.email})
-              </option>
-            ))}
-          </select>
-        </div>
+        {mode === "individual" ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Client
+            </label>
+            <select
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
+            >
+              <option value="">No linked account</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name} ({client.email})
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Company *
+            </label>
+            <select
+              value={companyId}
+              onChange={(e) => {
+                setCompanyId(e.target.value);
+                // Reset employee selections that belong to another company
+                const nextCompany = companies.find((c) => c.id === e.target.value);
+                setItems((prev) =>
+                  prev.map((item) =>
+                    nextCompany &&
+                    nextCompany.employees.some((emp) => emp.id === item.employeeId)
+                      ? item
+                      : { ...item, employeeId: "" }
+                  )
+                );
+              }}
+              required
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
+            >
+              <option value="">Select a company</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.companyName} ({company.employees.length} employees)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -182,57 +284,133 @@ export default function InvoiceForm({
       </div>
 
       <div className="mb-4">
-        <p className="text-sm font-medium text-gray-700 mb-2">Line Items *</p>
+        <p className="text-sm font-medium text-gray-700 mb-2">
+          {mode === "corporate"
+            ? "Sessions by Employee *"
+            : "Line Items *"}
+        </p>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {items.map((item, index) => (
-            <div key={index} className="grid grid-cols-12 gap-2 items-center">
-              <input
-                type="text"
-                placeholder="Description (e.g. Therapy session)"
-                value={item.description}
-                onChange={(e) => updateItem(index, { description: e.target.value })}
-                className="col-span-6 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
-              />
-              <input
-                type="number"
-                min="1"
-                placeholder="Qty"
-                value={item.quantity}
-                onChange={(e) =>
-                  updateItem(index, { quantity: parseInt(e.target.value) || 1 })
-                }
-                className="col-span-2 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
-              />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Unit price"
-                value={item.unitPrice}
-                onChange={(e) => updateItem(index, { unitPrice: e.target.value })}
-                className="col-span-3 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  setItems((prev) =>
-                    prev.length > 1 ? prev.filter((_, i) => i !== index) : prev
-                  )
-                }
-                disabled={items.length <= 1}
-                className="col-span-1 text-red-500 hover:text-red-700 disabled:opacity-30"
-                aria-label="Remove line item"
-              >
-                ✕
-              </button>
+            <div
+              key={index}
+              className="rounded-xl border border-gray-200 p-3 space-y-2"
+            >
+              <div className="grid grid-cols-12 gap-2 items-center">
+                {mode === "corporate" && (
+                  <select
+                    value={item.employeeId}
+                    onChange={(e) => updateItem(index, { employeeId: e.target.value })}
+                    className="col-span-12 sm:col-span-4 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
+                  >
+                    <option value="">Employee (optional)</option>
+                    {(selectedCompany?.employees ?? []).map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                <input
+                  type="text"
+                  placeholder={
+                    mode === "corporate"
+                      ? "Service (e.g. Therapy Session)"
+                      : "Description (e.g. Therapy session)"
+                  }
+                  value={item.description}
+                  onChange={(e) => updateItem(index, { description: e.target.value })}
+                  className={`${mode === "corporate" ? "col-span-8 sm:col-span-5" : "col-span-6"} rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none`}
+                />
+
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Qty"
+                  value={item.quantity}
+                  onChange={(e) =>
+                    updateItem(index, { quantity: parseInt(e.target.value) || 1 })
+                  }
+                  className="col-span-2 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
+                />
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Rate"
+                  value={item.unitPrice}
+                  onChange={(e) => updateItem(index, { unitPrice: e.target.value })}
+                  className="col-span-3 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
+                />
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setItems((prev) =>
+                      prev.length > 1 ? prev.filter((_, i) => i !== index) : prev
+                    )
+                  }
+                  disabled={items.length <= 1}
+                  className="col-span-1 text-red-500 hover:text-red-700 disabled:opacity-30"
+                  aria-label="Remove line item"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {mode === "corporate" && (
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-6 sm:col-span-4">
+                    <label className="block text-xs text-gray-500 mb-1">
+                      Session Date
+                    </label>
+                    <input
+                      type="date"
+                      value={item.sessionDate}
+                      onChange={(e) =>
+                        updateItem(index, { sessionDate: e.target.value })
+                      }
+                      className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="col-span-6 sm:col-span-4">
+                    <label className="block text-xs text-gray-500 mb-1">
+                      Service Type
+                    </label>
+                    <input
+                      type="text"
+                      value={item.serviceType}
+                      onChange={(e) =>
+                        updateItem(index, { serviceType: e.target.value })
+                      }
+                      className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="col-span-12 sm:col-span-4">
+                    <label className="block text-xs text-gray-500 mb-1">
+                      Billing Note (no clinical details)
+                    </label>
+                    <input
+                      type="text"
+                      value={item.note}
+                      onChange={(e) => updateItem(index, { note: e.target.value })}
+                      maxLength={120}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
 
         <button
           type="button"
-          onClick={() => setItems((prev) => [...prev, { ...emptyItem }])}
+          onClick={() => setItems((prev) => [...prev, emptyItem()])}
           className="mt-3 text-sm font-semibold text-teal-700 hover:text-teal-900"
         >
           + Add line item
@@ -254,8 +432,7 @@ export default function InvoiceForm({
             </span>
           </p>
           <p className="text-base text-teal-900">
-            Total:{" "}
-            <span className="font-bold">${total.toFixed(2)}</span>
+            Total: <span className="font-bold">${total.toFixed(2)}</span>
           </p>
         </div>
       </div>

@@ -167,6 +167,13 @@ export default async function Header() {
                 </Link>
 
                 <Link
+                  href="/admin/companies"
+                  className="rounded-lg px-3 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
+                >
+                  Companies
+                </Link>
+
+                <Link
                   href="/admin/settings"
                   className="rounded-lg px-3 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
                 >

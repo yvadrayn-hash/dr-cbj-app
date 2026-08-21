@@ -57,12 +57,19 @@ export default async function AdminPage() {
             </p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Link
               href="/admin/invoices"
               className="btn-primary !px-4 !py-2 text-sm"
             >
               Invoices and Payments
+            </Link>
+
+            <Link
+              href="/admin/companies"
+              className="btn-primary !px-4 !py-2 text-sm"
+            >
+              Companies
             </Link>
 
             <Link

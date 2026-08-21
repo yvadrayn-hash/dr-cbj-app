@@ -16,7 +16,7 @@ export const metadata = {
 export default async function AdminInvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; company?: string }>;
 }) {
   const session = await auth();
 
@@ -28,12 +28,13 @@ export default async function AdminInvoicesPage({
     redirect("/dashboard");
   }
 
-  const { filter } = await searchParams;
+  const { filter, company: companyParam } = await searchParams;
 
-  const [invoices, clients] = await Promise.all([
+  const [invoices, clients, companies] = await Promise.all([
     prisma.invoice.findMany({
       include: {
         user: true,
+        company: true,
         items: true,
         payments: { where: { status: "COMPLETED" } },
       },
@@ -43,6 +44,15 @@ export default async function AdminInvoicesPage({
       where: { role: "CLIENT" },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
+    }),
+    prisma.company.findMany({
+      include: {
+        employees: {
+          select: { id: true, name: true, email: true },
+          orderBy: { name: "asc" },
+        },
+      },
+      orderBy: { companyName: "asc" },
     }),
   ]);
 
@@ -102,9 +112,15 @@ export default async function AdminInvoicesPage({
             </p>
           </div>
 
-          <Link href="/admin" className="btn-primary !px-4 !py-2 text-sm">
-            Back to Dashboard
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/admin/companies" className="btn-primary !px-4 !py-2 text-sm">
+              Companies
+            </Link>
+
+            <Link href="/admin" className="btn-primary !px-4 !py-2 text-sm">
+              Back to Dashboard
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
@@ -158,7 +174,11 @@ export default async function AdminInvoicesPage({
         </div>
 
         <div className="mb-8 flex justify-end">
-          <InvoiceForm clients={clients} />
+          <InvoiceForm
+            clients={clients}
+            companies={companies}
+            preselectCompanyId={companyParam}
+          />
         </div>
 
         <div className="card overflow-x-auto">
@@ -219,7 +239,12 @@ export default async function AdminInvoicesPage({
                       </td>
 
                       <td className="py-4 pr-4">
-                        {invoice.user ? (
+                        {invoice.company ? (
+                          <>
+                            <p className="font-medium">{invoice.company.companyName}</p>
+                            <p className="text-xs text-gray-500">Corporate</p>
+                          </>
+                        ) : invoice.user ? (
                           <>
                             <p>{invoice.user.name}</p>
                             <p className="text-xs text-gray-500">

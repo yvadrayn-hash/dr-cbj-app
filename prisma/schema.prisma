@@ -38,6 +38,9 @@ model User {
   notifications    Notification[]
   invoices         Invoice[]
   payments         Payment[]
+  company          Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyId        String?
+  billedItems      InvoiceItem[]      @relation("InvoiceItemEmployee")
 }
 
 enum Role {
@@ -122,8 +125,9 @@ model Appointment {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user       User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   invoices   Invoice[]
+  billItems  InvoiceItem[]
 }
 
 enum AppointmentStatus {
@@ -131,6 +135,13 @@ enum AppointmentStatus {
   CONFIRMED
   COMPLETED
   CANCELLED
+}
+
+enum BillingFrequency {
+  WEEKLY
+  FORTNIGHTLY
+  MONTHLY
+  MANUAL
 }
 
 enum InvoiceStatus {
@@ -329,6 +340,24 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// ============ CORPORATE ACCOUNTS ============
+
+model Company {
+  id               String           @id @default(cuid())
+  companyName      String
+  contactName      String?
+  contactEmail     String?
+  contactPhone     String?
+  billingAddress   String?
+  billingFrequency BillingFrequency @default(MANUAL)
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  employees User[]
+  invoices  Invoice[]
+}
+
 // ============ INVOICING & PAYMENTS ============
 
 model Invoice {
@@ -336,6 +365,8 @@ model Invoice {
   invoiceNumber String        @unique
   userId        String?
   user          User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  companyId     String?
+  company       Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
   appointmentId String?
   appointment   Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   description   String?
@@ -353,13 +384,20 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id          String   @id @default(cuid())
-  invoiceId   String
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  description String
-  quantity    Int      @default(1)
-  unitPrice   Decimal
-  amount      Decimal
+  id            String       @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  employeeId    String?
+  employee      User?        @relation("InvoiceItemEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  sessionDate   DateTime?
+  serviceType   String?
+  note          String?
+  description   String
+  quantity      Int          @default(1)
+  unitPrice     Decimal
+  amount        Decimal
 }
 
 model Payment {

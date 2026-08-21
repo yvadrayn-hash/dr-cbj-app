@@ -2,12 +2,24 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { recalculateInvoiceTotals } from "@/lib/invoice-helpers";
+import {
+  recalculateInvoiceTotals,
+  updateInvoicePaymentStatus,
+} from "@/lib/invoice-helpers";
+
+const itemExtras = {
+  employeeId: z.string().nullable().optional(),
+  appointmentId: z.string().nullable().optional(),
+  sessionDate: z.string().nullable().optional(),
+  serviceType: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+};
 
 const createItemSchema = z.object({
   description: z.string().min(1, "Item description is required"),
   quantity: z.number().int().min(1, "Quantity must be at least 1").default(1),
   unitPrice: z.number().min(0, "Unit price is required"),
+  ...itemExtras,
 });
 
 const updateItemSchema = z.object({
@@ -15,11 +27,30 @@ const updateItemSchema = z.object({
   description: z.string().min(1, "Item description is required").optional(),
   quantity: z.number().int().min(1, "Quantity must be at least 1").optional(),
   unitPrice: z.number().min(0, "Unit price is required").optional(),
+  ...itemExtras,
 });
 
 const deleteItemSchema = z.object({
   itemId: z.string().min(1, "Item ID is required"),
 });
+
+function buildExtras(data: {
+  employeeId?: string | null;
+  appointmentId?: string | null;
+  sessionDate?: string | null;
+  serviceType?: string | null;
+  note?: string | null;
+}): Record<string, unknown> {
+  const extras: Record<string, unknown> = {};
+  if (data.employeeId !== undefined) extras.employeeId = data.employeeId || null;
+  if (data.appointmentId !== undefined) extras.appointmentId = data.appointmentId || null;
+  if (data.sessionDate !== undefined) {
+    extras.sessionDate = data.sessionDate ? new Date(data.sessionDate) : null;
+  }
+  if (data.serviceType !== undefined) extras.serviceType = data.serviceType || null;
+  if (data.note !== undefined) extras.note = data.note || null;
+  return extras;
+}
 
 export async function POST(
   request: Request,
@@ -62,10 +93,12 @@ export async function POST(
       quantity: data.quantity,
       unitPrice: data.unitPrice,
       amount: data.quantity * data.unitPrice,
+      ...buildExtras(data),
     },
   });
 
   await recalculateInvoiceTotals(id);
+  await updateInvoicePaymentStatus(id);
 
   return NextResponse.json({ item }, { status: 201 });
 }
@@ -102,7 +135,8 @@ export async function PATCH(
     );
   }
 
-  const { itemId, description, quantity, unitPrice } = parsed.data;
+  const { itemId, description, quantity, unitPrice, ...extrasInput } =
+    parsed.data;
 
   const existingItem = await prisma.invoiceItem.findUnique({
     where: { id: itemId },
@@ -113,22 +147,22 @@ export async function PATCH(
     return NextResponse.json({ error: "Item not found" }, { status: 404 });
   }
 
-  const updateData: Record<string, unknown> = {};
-  if (description) updateData.description = description;
-
   const newQuantity = quantity ?? existingItem.quantity;
   const newUnitPrice = unitPrice ?? Number(existingItem.unitPrice);
 
-  updateData.quantity = newQuantity;
-  updateData.unitPrice = newUnitPrice;
-  updateData.amount = newQuantity * newUnitPrice;
-
   await prisma.invoiceItem.update({
     where: { id: itemId },
-    data: updateData,
+    data: {
+      ...(description !== undefined ? { description } : {}),
+      quantity: newQuantity,
+      unitPrice: newUnitPrice,
+      amount: newQuantity * newUnitPrice,
+      ...buildExtras(extrasInput),
+    },
   });
 
   await recalculateInvoiceTotals(id);
+  await updateInvoicePaymentStatus(id);
 
   const updatedItem = await prisma.invoiceItem.findUnique({
     where: { id: itemId },
@@ -184,6 +218,7 @@ export async function DELETE(
   });
 
   await recalculateInvoiceTotals(id);
+  await updateInvoicePaymentStatus(id);
 
   return NextResponse.json({ success: true });
 }

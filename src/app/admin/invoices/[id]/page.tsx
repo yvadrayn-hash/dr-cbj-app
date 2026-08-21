@@ -12,7 +12,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import InvoiceItemsEditor from "@/components/admin/InvoiceItemsEditor";
 import InvoiceStatusUpdater from "@/components/admin/InvoiceStatusUpdater";
+import InvoiceDetailsEditor from "@/components/admin/InvoiceDetailsEditor";
 import PaymentForm from "@/components/admin/PaymentForm";
+import SendInvoiceButton from "@/components/admin/SendInvoiceButton";
 
 export const dynamic = "force-dynamic";
 
@@ -33,21 +35,47 @@ export default async function AdminInvoiceDetailPage({
 
   const { id } = await params;
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { id },
-    include: {
-      user: true,
-      appointment: true,
-      items: true,
-      payments: {
-        orderBy: { createdAt: "desc" },
+  const [invoice, clients, companies] = await Promise.all([
+    prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        user: true,
+        company: true,
+        appointment: true,
+        items: {
+          include: {
+            employee: { select: { id: true, name: true } },
+          },
+        },
+        payments: {
+          orderBy: { createdAt: "desc" },
+        },
       },
-    },
-  });
+    }),
+    prisma.user.findMany({
+      where: { role: "CLIENT" },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.company.findMany({
+      select: { id: true, companyName: true },
+      orderBy: { companyName: "asc" },
+    }),
+  ]);
 
   if (!invoice) {
     notFound();
   }
+
+  const isCorporate = Boolean(invoice.company);
+
+  const companyEmployees = invoice.company
+    ? await prisma.user.findMany({
+        where: { companyId: invoice.company.id, role: "CLIENT" },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
 
   const amountPaid = invoice.payments
     .filter((payment) => payment.status === "COMPLETED")
@@ -69,7 +97,8 @@ export default async function AdminInvoiceDetailPage({
             </Link>
             <h1 className="section-title">{invoice.invoiceNumber}</h1>
             <p className="text-gray-600">
-              Manage line items, status, and payments for this invoice.
+              {isCorporate ? "Corporate invoice" : "Individual invoice"} · manage
+              details, line items, status, and payments.
             </p>
           </div>
 
@@ -83,7 +112,7 @@ export default async function AdminInvoiceDetailPage({
         </div>
 
         {/* Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
           <div className="card text-center">
             <p className="text-sm text-gray-500 mb-1">Total</p>
             <p className="text-2xl font-bold text-teal-900">{formatMoney(total)}</p>
@@ -102,42 +131,97 @@ export default async function AdminInvoiceDetailPage({
               {formatMoney(remaining)}
             </p>
           </div>
+
+          <div className="card text-center">
+            <p className="text-sm text-gray-500 mb-1">Due Date</p>
+            <p className="text-2xl font-bold text-teal-900">
+              {invoice.dueDate.toLocaleDateString()}
+            </p>
+          </div>
         </div>
 
-        {/* Details */}
+        {/* Bill To / Details */}
         <div className="card mb-8">
-          <h2 className="text-lg font-bold text-teal-900 mb-4">Details</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h2 className="text-lg font-bold text-teal-900">Invoice Details</h2>
+            <InvoiceDetailsEditor
+              invoiceId={invoice.id}
+              initial={{
+                userId: invoice.userId ?? "",
+                companyId: invoice.companyId ?? "",
+                description: invoice.description ?? "",
+                dueDate: invoice.dueDate.toISOString().slice(0, 10),
+                discount: String(toNumber(invoice.discount)),
+                currency: invoice.currency,
+              }}
+              clients={clients}
+              companies={companies}
+            />
+          </div>
 
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-            <div>
-              <dt className="text-gray-500">Client</dt>
-              <dd className="font-semibold text-gray-800">
-                {invoice.user ? (
-                  <>
-                    {invoice.user.name}
-                    <span className="block text-xs font-normal text-gray-500">
-                      {invoice.user.email}
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-gray-400">Unassigned</span>
-                )}
-              </dd>
-            </div>
+            {isCorporate && invoice.company ? (
+              <>
+                <div>
+                  <dt className="text-gray-500">Bill To (Company)</dt>
+                  <dd className="font-semibold text-gray-800 break-words">
+                    {invoice.company.companyName}
+                  </dd>
+                </div>
 
-            <div>
-              <dt className="text-gray-500">Due Date</dt>
-              <dd className="font-semibold text-gray-800">
-                {invoice.dueDate.toLocaleDateString()}
-              </dd>
-            </div>
+                <div>
+                  <dt className="text-gray-500">Billing Contact</dt>
+                  <dd className="font-semibold text-gray-800 break-words">
+                    {invoice.company.contactName || "—"}
+                    {invoice.company.contactEmail && (
+                      <span className="block text-xs font-normal text-gray-500 break-words">
+                        {invoice.company.contactEmail}
+                      </span>
+                    )}
+                  </dd>
+                </div>
+
+                {invoice.company.billingAddress && (
+                  <div className="sm:col-span-2">
+                    <dt className="text-gray-500">Billing Address</dt>
+                    <dd className="text-gray-800 break-words">
+                      {invoice.company.billingAddress}
+                    </dd>
+                  </div>
+                )}
+
+                <div>
+                  <dt className="text-gray-500">Billing Frequency</dt>
+                  <dd className="font-semibold text-gray-800">
+                    {invoice.company.billingFrequency.charAt(0) +
+                      invoice.company.billingFrequency.slice(1).toLowerCase()}
+                  </dd>
+                </div>
+              </>
+            ) : (
+              <div>
+                <dt className="text-gray-500">Client</dt>
+                <dd className="font-semibold text-gray-800">
+                  {invoice.user ? (
+                    <>
+                      {invoice.user.name}
+                      <span className="block text-xs font-normal text-gray-500 break-words">
+                        {invoice.user.email}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-gray-400">Unassigned</span>
+                  )}
+                </dd>
+              </div>
+            )}
 
             <div>
               <dt className="text-gray-500">Subtotal / Discount</dt>
               <dd className="font-semibold text-gray-800">
                 {formatMoney(invoice.subtotal)}{" "}
                 <span className="font-normal text-gray-500">
-                  − {formatMoney(invoice.discount)}
+                  − {formatMoney(invoice.discount)} {invoice.currency}
                 </span>
               </dd>
             </div>
@@ -175,19 +259,52 @@ export default async function AdminInvoiceDetailPage({
             invoiceId={invoice.id}
             currentStatus={invoice.status as InvoiceStatus}
           />
+
+          {/* Manual send — invoices are NEVER emailed automatically. This
+              button is the only way an invoice email goes out, and it fires
+              only when Dr. CBJ explicitly confirms the send action. */}
+          {invoice.status === "DRAFT" && (
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <p className="text-sm text-gray-600 mb-3">
+                This invoice is a draft. Sending is always manual — use the
+                button below to email it to{" "}
+                {isCorporate && invoice.company
+                  ? `${invoice.company.companyName} (${invoice.company.contactEmail || "no billing email set"})`
+                  : invoice.user?.email || "the client"}{" "}
+                now.
+              </p>
+              <SendInvoiceButton
+                invoiceId={invoice.id}
+                recipientLabel={
+                  isCorporate && invoice.company
+                    ? `${invoice.company.companyName}${invoice.company.contactEmail ? ` (${invoice.company.contactEmail})` : ""}`
+                    : invoice.user?.email || "the client"
+                }
+              />
+            </div>
+          )}
         </div>
 
         {/* Line Items */}
         <div className="card mb-8">
-          <h2 className="text-lg font-bold text-teal-900 mb-4">Line Items</h2>
+          <h2 className="text-lg font-bold text-teal-900 mb-4">
+            Line Items ({invoice.items.length})
+          </h2>
           <InvoiceItemsEditor
             invoiceId={invoice.id}
+            employees={companyEmployees.map((e) => ({ id: e.id, name: e.name }))}
             items={invoice.items.map((item) => ({
               id: item.id,
               description: item.description,
               quantity: item.quantity,
               unitPrice: toNumber(item.unitPrice),
               amount: toNumber(item.amount),
+              employeeId: item.employeeId,
+              sessionDate: item.sessionDate
+                ? item.sessionDate.toISOString()
+                : null,
+              serviceType: item.serviceType,
+              note: item.note,
             }))}
           />
         </div>
