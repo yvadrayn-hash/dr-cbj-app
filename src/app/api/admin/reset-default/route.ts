@@ -6,11 +6,10 @@ export async function POST(request: Request) {
   const resetToken = process.env.ADMIN_RESET_TOKEN;
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD;
+  const formData = await request.formData();
+  const presentedToken = formData.get("token");
 
-  if (
-    !resetToken ||
-    request.headers.get("authorization") !== `Bearer ${resetToken}`
-  ) {
+  if (!resetToken || presentedToken !== resetToken) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
