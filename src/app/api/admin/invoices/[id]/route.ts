@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { recalculateInvoiceTotals } from "@/lib/invoice-helpers";
-import { sendInvoiceEmail, sendPaymentRecordedEmail } from "@/lib/email";
-import { formatMoney, generateTransactionReference } from "@/lib/invoices";
+import { sendInvoiceEmail, sendPaymentRecordedEmail, getAppUrl } from "@/lib/email";
+import { formatMoney, generateTransactionReference, toNumber } from "@/lib/invoices";
 
 const updateInvoiceSchema = z.object({
   status: z
@@ -20,6 +20,7 @@ const updateInvoiceSchema = z.object({
 async function notifyClient(invoice: {
   invoiceNumber: string;
   total: number;
+  amountDue: number;
   dueDate: Date;
   description?: string | null;
   user?: { id: string; email: string | null; name: string | null } | null;
@@ -43,9 +44,11 @@ async function notifyClient(invoice: {
       title: "New Invoice Created",
       message: `A new invoice (${invoice.invoiceNumber}) has been issued to you with a total of ${formatMoney(invoice.total)}.`,
       invoiceNumber: invoice.invoiceNumber,
+      description: invoice.description || undefined,
       total: formatMoney(invoice.total),
+      amountDue: formatMoney(invoice.amountDue),
       dueDate: invoice.dueDate.toLocaleDateString(),
-      dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`,
+      dashboardUrl: `${getAppUrl()}/dashboard/billing`,
     });
   } catch (error) {
     console.error("Invoice email failed:", error);
@@ -148,12 +151,21 @@ export async function PATCH(
     if (willBeSent) {
       const updated = await prisma.invoice.findUnique({
         where: { id },
-        include: { user: true },
+        include: {
+          user: true,
+          payments: { where: { status: "COMPLETED" } },
+        },
       });
       if (updated) {
+        const amountPaid = updated.payments.reduce(
+          (sum, payment) => sum + toNumber(payment.amount),
+          0
+        );
+
         await notifyClient({
           invoiceNumber: updated.invoiceNumber,
           total: Number(updated.total),
+          amountDue: Math.max(Number(updated.total) - amountPaid, 0),
           dueDate: updated.dueDate,
           description: updated.description,
           user: updated.user,

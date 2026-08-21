@@ -124,12 +124,22 @@ export async function POST(
     const result = await updateInvoicePaymentStatus(id);
 
     // Notify client when a completed payment is recorded
-    if (data.status === "COMPLETED" && invoice.user?.email && invoice.userId) {
+    if (
+      data.status === "COMPLETED" &&
+      invoice.user?.email &&
+      invoice.userId &&
+      result
+    ) {
+      const remainingBalance = Math.max(result.total - result.amountPaid, 0);
+      const paidInFull = remainingBalance <= 0.001;
+
       await prisma.notification.create({
         data: {
           userId: invoice.userId,
           title: "Payment Received",
-          message: `Your payment of ${formatMoney(data.amount)} for invoice ${invoice.invoiceNumber} has been recorded.`,
+          message: paidInFull
+            ? `Your payment of ${formatMoney(data.amount)} for invoice ${invoice.invoiceNumber} has been received. This invoice is now paid in full — thank you!`
+            : `Your payment of ${formatMoney(data.amount)} for invoice ${invoice.invoiceNumber} has been received. Remaining balance: ${formatMoney(remainingBalance)}.`,
           type: "PAYMENT_RECEIVED",
         },
       });
@@ -139,10 +149,14 @@ export async function POST(
           to: invoice.user.email,
           subject: `Payment Received - Invoice ${invoice.invoiceNumber}`,
           title: "Payment Received",
-          message: `Thank you for your payment of ${formatMoney(data.amount)} for invoice ${invoice.invoiceNumber}.`,
+          message: paidInFull
+            ? `Thank you for your payment of ${formatMoney(data.amount)} for invoice ${invoice.invoiceNumber}. Your balance is now settled — this invoice is <strong>paid in full</strong>.`
+            : `Thank you for your payment of ${formatMoney(data.amount)} for invoice ${invoice.invoiceNumber}.`,
           invoiceNumber: invoice.invoiceNumber,
           amount: formatMoney(data.amount),
           method: data.paymentMethod.replaceAll("_", " ").toLowerCase(),
+          transactionReference: payment.transactionReference ?? undefined,
+          remainingBalance: formatMoney(remainingBalance),
         });
       } catch (error) {
         console.error("Payment email failed:", error);

@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { toNumber, formatMoney, generateTransactionReference } from "@/lib/invoices";
+import { sendPaymentSubmittedAdminEmail } from "@/lib/email";
+import { siteConfig } from "@/lib/site";
 
 const submitPaymentSchema = z.object({
   amount: z.number().positive("Amount must be greater than 0"),
@@ -109,6 +111,24 @@ export async function POST(
           type: "PAYMENT_SUBMITTED",
         })),
       });
+    }
+
+    // Email the office so the submission is not missed (after the DB write
+    // succeeds; failures are logged, never rolled back)
+    try {
+      await sendPaymentSubmittedAdminEmail({
+        to: siteConfig.email,
+        subject: `Payment Submitted — Invoice ${invoice.invoiceNumber}`,
+        title: "Payment Submitted by Client",
+        message: `A client has submitted a payment declaration. Please verify it and record the confirmed payment in Invoices and Payments.`,
+        invoiceNumber: invoice.invoiceNumber,
+        clientName: session.user.name ?? "Unknown client",
+        amount: formatMoney(data.amount),
+        method: data.paymentMethod.replaceAll("_", " ").toLowerCase(),
+        reference: payment.transactionReference ?? undefined,
+      });
+    } catch (error) {
+      console.error("Payment submitted admin email failed:", error);
     }
 
     return NextResponse.json({ payment }, { status: 201 });

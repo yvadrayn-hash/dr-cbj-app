@@ -26,15 +26,40 @@ export async function PATCH(
     );
   }
 
+  // Capture the previous schedule so we can report what changed
+  const previous = await prisma.appointment.findUnique({
+    where: { id },
+    select: { preferredDate: true, preferredTime: true },
+  });
+
+  if (!previous) {
+    return NextResponse.json(
+      { error: "Appointment not found" },
+      { status: 404 }
+    );
+  }
+
+  const newDate = new Date(`${preferredDate}T00:00:00`);
+  const scheduleChanged =
+    previous.preferredDate.getTime() !== newDate.getTime() ||
+    previous.preferredTime !== preferredTime;
+
   const appointment = await prisma.appointment.update({
     where: { id },
     data: {
-      preferredDate: new Date(`${preferredDate}T00:00:00`),
+      preferredDate: newDate,
       preferredTime,
     },
   });
 
-  const message = `Your appointment has been rescheduled to ${appointment.preferredDate.toLocaleDateString()} at ${appointment.preferredTime}.`;
+  const previousDate = previous.preferredDate.toLocaleDateString();
+  const newDateFormatted = appointment.preferredDate.toLocaleDateString();
+
+  const message = `Your appointment has been rescheduled.<br /><br />
+    <strong>Previous:</strong> ${previousDate} at ${previous.preferredTime}<br />
+    <strong>New:</strong> ${newDateFormatted} at ${appointment.preferredTime}`;
+
+  const plainMessage = `Your appointment has been rescheduled. Previous: ${previousDate} at ${previous.preferredTime}. New: ${newDateFormatted} at ${appointment.preferredTime}.`;
 
   const client =
     appointment.userId
@@ -50,21 +75,25 @@ export async function PATCH(
       data: {
         userId: client.id,
         title: "Appointment Rescheduled",
-        message,
+        message: plainMessage,
         type: "APPOINTMENT_RESCHEDULED",
       },
     });
   }
 
-  try {
-    await sendAppointmentEmail({
-      to: appointment.email,
-      subject: "Appointment Rescheduled",
-      title: "Appointment Rescheduled",
-      message,
-    });
-  } catch (error) {
-    console.error("Appointment email failed:", error);
+  // Email only when the schedule actually changed, and only after the
+  // database update succeeded. Failures are logged, never rolled back.
+  if (scheduleChanged) {
+    try {
+      await sendAppointmentEmail({
+        to: appointment.email,
+        subject: "Appointment Rescheduled",
+        title: "Appointment Rescheduled",
+        message,
+      });
+    } catch (error) {
+      console.error("Appointment email failed:", error);
+    }
   }
 
   return NextResponse.json({ appointment });
