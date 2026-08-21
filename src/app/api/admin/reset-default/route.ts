@@ -2,12 +2,11 @@ import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   const resetToken = process.env.ADMIN_RESET_TOKEN;
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD;
-  const formData = await request.formData();
-  const presentedToken = formData.get("token");
+  const presentedToken = new URL(request.url).searchParams.get("token");
 
   if (!resetToken || presentedToken !== resetToken) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
