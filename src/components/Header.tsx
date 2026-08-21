@@ -78,12 +78,21 @@ export default async function Header() {
                 )}
 
                 {isClient && (
-                  <Link
-                    href="/dashboard"
-                    className="btn-gold !px-4 !py-2 text-xs"
-                  >
-                    Dashboard
-                  </Link>
+                  <>
+                    <Link
+                      href="/dashboard"
+                      className="btn-gold !px-4 !py-2 text-xs"
+                    >
+                      Dashboard
+                    </Link>
+
+                    <Link
+                      href="/dashboard/billing"
+                      className="text-sm text-teal-100 hover:text-white transition-colors"
+                    >
+                      Billing
+                    </Link>
+                  </>
                 )}
 
                 <form

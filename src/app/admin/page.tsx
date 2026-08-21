@@ -35,6 +35,17 @@ export default async function AdminPage() {
   const completed = appointments.filter((a: { status: AppointmentStatus }) => a.status === "COMPLETED").length;
   const cancelled = appointments.filter((a: { status: AppointmentStatus }) => a.status === "CANCELLED").length;
 
+  const invoices = await prisma.invoice.findMany({
+    include: { payments: { where: { status: "COMPLETED" } } },
+  });
+
+  const outstandingInvoices = invoices.filter(
+    (invoice) =>
+      invoice.status === "SENT" ||
+      invoice.status === "PARTIALLY_PAID" ||
+      invoice.status === "OVERDUE"
+  ).length;
+
   return (
     <div className="py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,12 +57,21 @@ export default async function AdminPage() {
             </p>
           </div>
 
-          <Link
-            href="/admin/clients"
-            className="btn-primary !px-4 !py-2 text-sm"
-          >
-            Clients
-          </Link>
+          <div className="flex gap-3">
+            <Link
+              href="/admin/invoices"
+              className="btn-primary !px-4 !py-2 text-sm"
+            >
+              Invoices & Payments
+            </Link>
+
+            <Link
+              href="/admin/clients"
+              className="btn-primary !px-4 !py-2 text-sm"
+            >
+              Clients
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
@@ -66,13 +86,15 @@ export default async function AdminPage() {
           </div>
 
           <div className="card text-center">
-            <p className="text-sm text-gray-500 mb-1">Completed</p>
-            <p className="text-3xl font-bold text-green-600">{completed}</p>
+            <p className="text-sm text-gray-500 mb-1">Outstanding Invoices</p>
+            <p className="text-3xl font-bold text-amber-500">
+              {outstandingInvoices}
+            </p>
           </div>
 
           <div className="card text-center">
-            <p className="text-sm text-gray-500 mb-1">Cancelled</p>
-            <p className="text-3xl font-bold text-red-500">{cancelled}</p>
+            <p className="text-sm text-gray-500 mb-1">Total Invoices</p>
+            <p className="text-3xl font-bold text-teal-600">{invoices.length}</p>
           </div>
         </div>
 

@@ -15,7 +15,7 @@ async function main() {
   console.log("Seeding database...");
 
   // Seed Admin user
-  const adminEmail = process.env.ADMIN_EMAIL || "dr.cbj@manorgrouphealth.com";
+  const adminEmail = process.env.ADMIN_EMAIL || "dr.cbj@drcbjwellness.com";
   const adminPassword = process.env.ADMIN_PASSWORD || "ChangeMe123!";
 
   const existingAdmin = await prisma.user.findUnique({

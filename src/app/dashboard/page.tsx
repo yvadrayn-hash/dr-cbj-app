@@ -202,6 +202,20 @@ export default async function DashboardPage() {
                   </div>
                 </div>
               </Link>
+              <Link href="/dashboard/billing" className="card block hover:bg-teal-50">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">💳</span>
+                  <div>
+                    <p className="font-semibold text-teal-900">
+                      Billing & Payments
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      View your invoices and payment history
+                    </p>
+                  </div>
+                </div>
+              </Link>
+
               <Link href="/dashboard/intake" className="card block hover:bg-teal-50">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{"\u{1F4CB}"}</span>

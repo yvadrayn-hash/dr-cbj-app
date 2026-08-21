@@ -64,10 +64,16 @@ export default function AboutPage() {
             can transform lives, strengthen families, and build resilient
             communities.
           </p>
-          <p className="text-gray-700">
+          <p className="text-gray-700 mb-4">
             Dr. CBJ is committed to confidentiality, professionalism, and
             providing care that respects each client's unique background,
             values, and goals.
+          </p>
+          <p className="text-gray-700">
+            Dr. CBJ uses Cognitive Behavioural Therapy (CBT), Dialectical
+            Behavioural Therapy (DBT), Virtual Reality Therapy (VRT), Touch
+            Point Therapy, and other learned therapeutic approaches to assist
+            her clientele.
           </p>
         </div>
 

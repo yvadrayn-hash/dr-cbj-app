@@ -35,7 +35,9 @@ model User {
   accounts         Account[]
   sessions         Session[]
   adminActivities  AdminActivityLog[] @relation("AdminActor")
-  notifications Notification[]
+  notifications    Notification[]
+  invoices         Invoice[]
+  payments         Payment[]
 }
 
 enum Role {
@@ -120,7 +122,8 @@ model Appointment {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  invoices   Invoice[]
 }
 
 enum AppointmentStatus {
@@ -128,6 +131,22 @@ enum AppointmentStatus {
   CONFIRMED
   COMPLETED
   CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
 }
 
 // ============ INTAKE FORMS ============
@@ -308,4 +327,53 @@ model Notification {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ INVOICING & PAYMENTS ============
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  userId        String?
+  user          User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  appointmentId String?
+  appointment   Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  description   String?
+  subtotal      Decimal
+  discount      Decimal       @default(0)
+  total         Decimal
+  currency      String        @default("USD")
+  status        InvoiceStatus @default(DRAFT)
+  dueDate       DateTime
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  items    InvoiceItem[]
+  payments Payment[]
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Decimal
+  amount      Decimal
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  invoiceId         String
+  invoice           Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  userId            String?
+  user              User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  amount            Decimal
+  currency          String        @default("USD")
+  paymentMethod     String        @default("MANUAL")
+  transactionReference String?
+  status            PaymentStatus @default(PENDING)
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 }
