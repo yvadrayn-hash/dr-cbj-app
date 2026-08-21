@@ -7,7 +7,7 @@ export const siteConfig = {
   address: "Unit 7 Lower Manor Park Plaza, Kingston, Jamaica",
   phone: "(876) 370-0095",
   fixedLine: "(876) 620-4297",
-  email: "manorgrouphealth@gmail.com",
+  email: "info@drcbjwellness.com",
   instagram: "@drcbj_intheflowofliving",
   description:
     "A digital sanctuary where people can seek support, learn about mental health, and begin their healing journey with Dr. Coretta Brown-Johnson, JP.",
