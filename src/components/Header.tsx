@@ -149,6 +149,31 @@ export default async function Header() {
                 {link.label}
               </Link>
             ))}
+
+            {isAdmin && (
+              <>
+                <Link
+                  href="/admin"
+                  className="rounded-lg px-3 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
+                >
+                  Admin Dashboard
+                </Link>
+
+                <Link
+                  href="/admin/invoices"
+                  className="rounded-lg px-3 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
+                >
+                  Invoices and Payments
+                </Link>
+
+                <Link
+                  href="/admin/settings"
+                  className="rounded-lg px-3 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
+                >
+                  Settings
+                </Link>
+              </>
+            )}
           </nav>
         </details>
       </div>
