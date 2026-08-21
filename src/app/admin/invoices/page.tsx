@@ -13,7 +13,11 @@ export const metadata = {
   description: "Create and manage client invoices.",
 };
 
-export default async function AdminInvoicesPage() {
+export default async function AdminInvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
   const session = await auth();
 
   if (!session?.user) {
@@ -23,6 +27,8 @@ export default async function AdminInvoicesPage() {
   if (session.user.role !== "ADMIN") {
     redirect("/dashboard");
   }
+
+  const { filter } = await searchParams;
 
   const [invoices, clients] = await Promise.all([
     prisma.invoice.findMany({
@@ -61,6 +67,30 @@ export default async function AdminInvoicesPage() {
 
   const drafts = invoices.filter((invoice) => invoice.status === "DRAFT").length;
 
+  const filteredInvoices =
+    filter === "open"
+      ? invoices.filter(
+          (invoice) =>
+            invoice.status === "SENT" ||
+            invoice.status === "PARTIALLY_PAID" ||
+            invoice.status === "OVERDUE"
+        )
+      : filter === "paid"
+      ? invoices.filter(
+          (invoice) =>
+            invoice.status === "PAID" &&
+            invoice.payments.some((payment) => payment.status === "COMPLETED")
+        )
+      : filter === "draft"
+      ? invoices.filter((invoice) => invoice.status === "DRAFT")
+      : invoices;
+
+  const activeFilterLabels: Record<string, string> = {
+    open: "Outstanding invoices",
+    paid: "Paid invoices",
+    draft: "Draft invoices",
+  };
+
   return (
     <div className="py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -78,29 +108,53 @@ export default async function AdminInvoicesPage() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-          <div className="card text-center">
+          <Link
+            href="/admin/invoices?filter=open"
+            aria-label="Show outstanding invoices"
+            className={`card text-center transition duration-150 hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+              filter === "open" ? "ring-2 ring-teal-500" : ""
+            }`}
+          >
             <p className="text-sm text-gray-500 mb-1">Outstanding</p>
             <p className="text-3xl font-bold text-amber-500">
               {formatMoney(outstanding)}
             </p>
-          </div>
+          </Link>
 
-          <div className="card text-center">
+          <Link
+            href="/admin/invoices?filter=paid"
+            aria-label="Show collected payments and paid invoices"
+            className={`card text-center transition duration-150 hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+              filter === "paid" ? "ring-2 ring-teal-500" : ""
+            }`}
+          >
             <p className="text-sm text-gray-500 mb-1">Collected</p>
             <p className="text-3xl font-bold text-green-600">
               {formatMoney(collected)}
             </p>
-          </div>
+          </Link>
 
-          <div className="card text-center">
+          <Link
+            href="/admin/invoices?filter=draft"
+            aria-label="Show draft invoices"
+            className={`card text-center transition duration-150 hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+              filter === "draft" ? "ring-2 ring-teal-500" : ""
+            }`}
+          >
             <p className="text-sm text-gray-500 mb-1">Drafts</p>
             <p className="text-3xl font-bold text-gray-600">{drafts}</p>
-          </div>
+          </Link>
 
-          <div className="card text-center">
+          <Link
+            href="/admin/invoices"
+            aria-label="Show all invoices"
+            className={`card text-center transition duration-150 hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+              !filter ? "ring-2 ring-teal-500" : ""
+            }`}
+          >
             <p className="text-sm text-gray-500 mb-1">Total Invoices</p>
             <p className="text-3xl font-bold text-teal-600">{invoices.length}</p>
-          </div>
+          </Link>
         </div>
 
         <div className="mb-8 flex justify-end">
@@ -108,14 +162,32 @@ export default async function AdminInvoicesPage() {
         </div>
 
         <div className="card overflow-x-auto">
-          <div className="mb-6">
-            <h2 className="text-xl font-bold text-teal-900">All Invoices</h2>
-            <p className="text-sm text-gray-500">
-              {invoices.length} invoice{invoices.length === 1 ? "" : "s"}
-            </p>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-teal-900">
+                {filter && activeFilterLabels[filter]
+                  ? activeFilterLabels[filter]
+                  : "All Invoices"}
+              </h2>
+              <p className="text-sm text-gray-500">
+                {filteredInvoices.length} invoice
+                {filteredInvoices.length === 1 ? "" : "s"}
+                {filter && (
+                  <>
+                    {" · "}
+                    <Link
+                      href="/admin/invoices"
+                      className="font-semibold text-teal-700 hover:text-teal-900"
+                    >
+                      Clear filter
+                    </Link>
+                  </>
+                )}
+              </p>
+            </div>
           </div>
 
-          {invoices.length === 0 ? (
+          {filteredInvoices.length === 0 ? (
             <p className="text-gray-500 py-8 text-center">
               No invoices yet. Create your first invoice above.
             </p>
@@ -134,7 +206,7 @@ export default async function AdminInvoicesPage() {
               </thead>
 
               <tbody>
-                {invoices.map((invoice) => {
+                {filteredInvoices.map((invoice) => {
                   const paid = invoice.payments.reduce(
                     (s, p) => s + toNumber(p.amount),
                     0

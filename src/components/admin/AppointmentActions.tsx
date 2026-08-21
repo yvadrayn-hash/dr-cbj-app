@@ -51,7 +51,7 @@ export default function AppointmentActions({
           type="button"
           disabled={loading !== null}
           onClick={() => updateStatus("CONFIRMED")}
-          className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
+          className="min-h-[40px] whitespace-nowrap rounded-lg bg-teal-600 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:opacity-50"
         >
           {loading === "CONFIRMED" ? "Updating..." : "Confirm"}
         </button>
@@ -62,7 +62,7 @@ export default function AppointmentActions({
           type="button"
           disabled={loading !== null}
           onClick={() => updateStatus("COMPLETED")}
-          className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+          className="min-h-[40px] whitespace-nowrap rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:opacity-50"
         >
           {loading === "COMPLETED" ? "Updating..." : "Complete"}
         </button>
@@ -73,7 +73,7 @@ export default function AppointmentActions({
           type="button"
           disabled={loading !== null}
           onClick={() => updateStatus("CANCELLED")}
-          className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+          className="min-h-[40px] whitespace-nowrap rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:opacity-50"
         >
           {loading === "CANCELLED" ? "Updating..." : "Cancel"}
         </button>

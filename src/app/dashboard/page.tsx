@@ -95,7 +95,7 @@ export default async function DashboardPage() {
               <div className="space-y-4">
                 {appointments.map((appt) => (
                   <div key={appt.id} className="card border-l-4 border-l-teal-500">
-                    <div className="flex justify-between items-start">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                       <div>
                         <h3 className="font-semibold text-teal-900">
                           {appt.sessionType.replace(/_/g, " ")}

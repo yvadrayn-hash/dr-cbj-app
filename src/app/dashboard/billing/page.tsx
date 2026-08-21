@@ -17,7 +17,11 @@ export const metadata = {
   description: "View your invoices and payment history.",
 };
 
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -29,6 +33,8 @@ export default async function BillingPage() {
     redirect("/admin/invoices");
   }
 
+  const { filter } = await searchParams;
+
   const invoices = await prisma.invoice.findMany({
     where: { userId },
     include: {
@@ -37,6 +43,18 @@ export default async function BillingPage() {
     },
     orderBy: { createdAt: "desc" },
   });
+
+  const filteredInvoices =
+    filter === "unpaid"
+      ? invoices.filter(
+          (invoice) =>
+            invoice.status === "SENT" ||
+            invoice.status === "PARTIALLY_PAID" ||
+            invoice.status === "OVERDUE"
+        )
+      : filter === "paid"
+      ? invoices.filter((invoice) => invoice.status === "PAID")
+      : invoices;
 
   const outstanding = invoices
     .filter(
@@ -70,27 +88,45 @@ export default async function BillingPage() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-10">
-          <div className="card text-center">
+          <Link
+            href="/dashboard/billing?filter=unpaid"
+            aria-label="Show unpaid, overdue, and partially paid invoices"
+            className={`card text-center transition duration-150 hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+              filter === "unpaid" ? "ring-2 ring-teal-500" : ""
+            }`}
+          >
             <p className="text-sm text-gray-500 mb-1">Outstanding Balance</p>
             <p className="text-3xl font-bold text-amber-500">
               {formatMoney(outstanding)}
             </p>
-          </div>
+          </Link>
 
-          <div className="card text-center">
+          <Link
+            href="/dashboard/billing"
+            aria-label="Show all invoices"
+            className={`card text-center transition duration-150 hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+              !filter ? "ring-2 ring-teal-500" : ""
+            }`}
+          >
             <p className="text-sm text-gray-500 mb-1">Invoices</p>
             <p className="text-3xl font-bold text-teal-600">{invoices.length}</p>
-          </div>
+          </Link>
 
-          <div className="card text-center">
+          <Link
+            href="/dashboard/billing?filter=paid"
+            aria-label="Show invoices paid in full"
+            className={`card text-center transition duration-150 hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+              filter === "paid" ? "ring-2 ring-teal-500" : ""
+            }`}
+          >
             <p className="text-sm text-gray-500 mb-1">Paid In Full</p>
             <p className="text-3xl font-bold text-green-600">
               {invoices.filter((invoice) => invoice.status === "PAID").length}
             </p>
-          </div>
+          </Link>
         </div>
 
-        {invoices.length === 0 ? (
+        {filteredInvoices.length === 0 ? (
           <div className="card text-center py-12">
             <p className="text-gray-500">
               You have no invoices yet. Invoices issued by Dr. CBJ Mental
@@ -99,7 +135,7 @@ export default async function BillingPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {invoices.map((invoice) => {
+            {filteredInvoices.map((invoice) => {
               const paid = invoice.payments
                 .filter((payment) => payment.status === "COMPLETED")
                 .reduce((sum, payment) => sum + toNumber(payment.amount), 0);
