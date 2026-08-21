@@ -37,8 +37,13 @@ export default async function BillingPage({
 
   const { filter } = await searchParams;
 
+  // Clients only ever see SENT / PARTIALLY_PAID / PAID / OVERDUE invoices.
+  // DRAFT (admin-only) and CANCELLED are filtered out server-side.
   const invoices = await prisma.invoice.findMany({
-    where: { userId },
+    where: {
+      userId,
+      status: { in: ["SENT", "PARTIALLY_PAID", "PAID", "OVERDUE"] },
+    },
     include: {
       items: true,
       payments: true,

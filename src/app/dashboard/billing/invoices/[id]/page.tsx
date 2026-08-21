@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { toNumber, formatMoney, invoiceStatusColor, invoiceStatusLabels } from "@/lib/invoices";
 import PayInvoiceForm from "@/components/billing/PayInvoiceForm";
@@ -48,6 +48,12 @@ export default async function ClientInvoiceDetailPage({
   // Ownership check
   if (invoice.userId !== session.user.id) {
     redirect("/dashboard/billing");
+  }
+
+  // Clients must never see DRAFT (admin-only) or CANCELLED invoices —
+  // direct URL access returns not-found
+  if (invoice.status === "DRAFT" || invoice.status === "CANCELLED") {
+    notFound();
   }
 
   const amountPaid = invoice.payments

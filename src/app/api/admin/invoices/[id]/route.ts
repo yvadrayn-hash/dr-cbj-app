@@ -5,8 +5,9 @@ import { z } from "zod";
 import {
   recalculateInvoiceTotals,
   updateInvoicePaymentStatus,
+  notifyInvoiceRecipient,
 } from "@/lib/invoice-helpers";
-import { sendInvoiceEmail, sendPaymentRecordedEmail, getAppUrl } from "@/lib/email";
+import { sendPaymentRecordedEmail } from "@/lib/email";
 import { formatMoney, toNumber } from "@/lib/invoices";
 
 const MAX_AMOUNT = 1_000_000;
@@ -51,72 +52,11 @@ const updateInvoiceSchema = z.object({
     .min(1, "At least one line item is required")
     .max(200, "Too many line items")
     .optional(),
+  // Explicit admin action ONLY: true = mark SENT and email the recipient
+  // (send for drafts, resend for already-sent invoices). Editing without
+  // this flag NEVER sends an email and preserves the current status.
+  send: z.boolean().optional(),
 });
-
-async function notifyRecipient(invoice: {
-  invoiceNumber: string;
-  total: number;
-  amountDue: number;
-  dueDate: Date;
-  description?: string | null;
-  user?: { id: string; email: string | null; name: string | null } | null;
-  company?: {
-    companyName: string;
-    contactName?: string | null;
-    contactEmail?: string | null;
-  } | null;
-}) {
-  // Corporate invoices go to the company's billing contact
-  if (invoice.company) {
-    if (!invoice.company.contactEmail) return;
-
-    await sendInvoiceEmail({
-      to: invoice.company.contactEmail,
-      subject: `New Invoice ${invoice.invoiceNumber} — ${invoice.company.companyName}`,
-      title: "New Invoice Created",
-      message: `Dear ${invoice.company.contactName || invoice.company.companyName}, a new invoice (${invoice.invoiceNumber}) has been issued to ${invoice.company.companyName} with a total of ${formatMoney(invoice.total)}.`,
-      invoiceNumber: invoice.invoiceNumber,
-      description: invoice.description || undefined,
-      total: formatMoney(invoice.total),
-      amountDue: formatMoney(invoice.amountDue),
-      dueDate: invoice.dueDate.toLocaleDateString(),
-      dashboardUrl: `${getAppUrl()}/dashboard/billing`,
-    }).catch((error) => {
-      console.error("Corporate invoice email failed:", error);
-    });
-
-    return;
-  }
-
-  if (!invoice.user?.id || !invoice.user?.email) return;
-
-  // Create in-app notification
-  await prisma.notification.create({
-    data: {
-      userId: invoice.user.id,
-      title: "Invoice Sent",
-      message: `Invoice ${invoice.invoiceNumber} for ${formatMoney(invoice.total)} is now due on ${invoice.dueDate.toLocaleDateString()}.`,
-      type: "INVOICE_SENT",
-    },
-  });
-
-  try {
-    await sendInvoiceEmail({
-      to: invoice.user.email,
-      subject: `New Invoice ${invoice.invoiceNumber}`,
-      title: "New Invoice Created",
-      message: `A new invoice (${invoice.invoiceNumber}) has been issued to you with a total of ${formatMoney(invoice.total)}.`,
-      invoiceNumber: invoice.invoiceNumber,
-      description: invoice.description || undefined,
-      total: formatMoney(invoice.total),
-      amountDue: formatMoney(invoice.amountDue),
-      dueDate: invoice.dueDate.toLocaleDateString(),
-      dashboardUrl: `${getAppUrl()}/dashboard/billing`,
-    });
-  } catch (error) {
-    console.error("Invoice email failed:", error);
-  }
-}
 
 export async function GET(
   request: Request,
@@ -194,7 +134,8 @@ export async function PATCH(
 
     const data = parsed.data;
     const wasSent = currentInvoice.status === "SENT";
-    const willBeSent = data.status === "SENT" && !wasSent;
+    // Explicit send/resend action — the ONLY path that emails an invoice
+    const explicitSend = data.send === true;
 
     const amountPaid = currentInvoice.payments.reduce(
       (sum, payment) => sum + toNumber(payment.amount),
@@ -226,7 +167,8 @@ export async function PATCH(
     // —— Apply the update ——
     const updateData: Record<string, unknown> = {};
 
-    if (data.status) updateData.status = data.status;
+    if (explicitSend) updateData.status = "SENT";
+    else if (data.status) updateData.status = data.status;
     if (data.dueDate) updateData.dueDate = new Date(data.dueDate);
     if (data.description !== undefined) updateData.description = data.description;
     if (data.discount !== undefined) updateData.discount = data.discount;
@@ -300,8 +242,10 @@ export async function PATCH(
     // edit creates a new balance, and keeps/returns PAID when fully settled.
     await updateInvoicePaymentStatus(id);
 
-    // If status changed to SENT, notify the recipient (client or company)
-    if (willBeSent) {
+    // Email ONLY on the explicit send/resend action. Plain edits (even ones
+    // that change other fields) never trigger an email, so refreshes and
+    // repeated saves cannot produce duplicate sends.
+    if (explicitSend) {
       const updated = await prisma.invoice.findUnique({
         where: { id },
         include: {
@@ -316,21 +260,20 @@ export async function PATCH(
           0
         );
 
-        await notifyRecipient({
-          invoiceNumber: updated.invoiceNumber,
-          total: Number(updated.total),
-          amountDue: Math.max(Number(updated.total) - paid, 0),
-          dueDate: updated.dueDate,
-          description: updated.description,
-          user: updated.user,
-          company: updated.company
-            ? {
-                companyName: updated.company.companyName,
-                contactName: updated.company.contactName,
-                contactEmail: updated.company.contactEmail,
-              }
-            : null,
-        });
+        // In-app notification only on the first send (DRAFT → SENT);
+        // resends of an already-sent invoice are email-only
+        await notifyInvoiceRecipient(
+          {
+            invoiceNumber: updated.invoiceNumber,
+            total: Number(updated.total),
+            amountDue: Math.max(Number(updated.total) - paid, 0),
+            dueDate: updated.dueDate,
+            description: updated.description,
+            user: updated.user,
+            company: updated.company,
+          },
+          { inAppNotification: !wasSent }
+        );
       }
     }
 

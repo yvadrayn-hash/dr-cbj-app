@@ -6,15 +6,19 @@ import { useState } from "react";
 export default function SendInvoiceButton({
   invoiceId,
   recipientLabel,
+  currentStatus = "DRAFT",
 }: {
   invoiceId: string;
   /** Human-readable recipient shown in the confirmation hint */
   recipientLabel: string;
+  currentStatus?: string;
 }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isResend = currentStatus === "SENT";
 
   async function handleSend() {
     setSending(true);
@@ -24,7 +28,7 @@ export default function SendInvoiceButton({
       const response = await fetch(`/api/admin/invoices/${invoiceId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "SENT" }),
+        body: JSON.stringify({ status: "SENT", send: true }),
       });
 
       if (!response.ok) {
@@ -46,9 +50,9 @@ export default function SendInvoiceButton({
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="btn-primary !px-4 !py-2 text-sm"
+        className={`btn-primary !px-4 !py-2 text-sm ${isResend ? "!bg-teal-700" : ""}`}
       >
-        Send Invoice
+        {isResend ? "Resend Invoice" : "Send Invoice"}
       </button>
     );
   }
@@ -56,9 +60,10 @@ export default function SendInvoiceButton({
   return (
     <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
       <p className="text-sm text-amber-900 mb-3">
-        Send this invoice to <strong>{recipientLabel}</strong> by email? This
-        marks the invoice as Sent and emails the billing contact. Nothing is
-        ever sent automatically.
+        {isResend ? "Resend" : "Send"} this invoice to{" "}
+        <strong>{recipientLabel}</strong> by email? This marks the invoice as
+        Sent and emails the billing contact. Nothing is ever sent
+        automatically.
       </p>
 
       {error && (
@@ -74,7 +79,7 @@ export default function SendInvoiceButton({
           disabled={sending}
           className="btn-primary !px-4 !py-2 text-sm disabled:opacity-50"
         >
-          {sending ? "Sending..." : "Yes, Send Invoice"}
+          {sending ? "Sending..." : isResend ? "Yes, Resend" : "Yes, Send Invoice"}
         </button>
         <button
           type="button"

@@ -2,7 +2,8 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { generateInvoiceNumber } from "@/lib/invoices";
+import { generateInvoiceNumber, toNumber } from "@/lib/invoices";
+import { notifyInvoiceRecipient } from "@/lib/invoice-helpers";
 
 const MAX_AMOUNT = 1_000_000;
 
@@ -42,6 +43,9 @@ const createInvoiceSchema = z.object({
     .array(invoiceItemSchema)
     .min(1, "At least one line item is required")
     .max(200, "Too many line items"),
+  // Explicit admin choice: false/omitted = Save as Draft (no email);
+  // true = create as SENT and email the recipient immediately.
+  send: z.boolean().optional(),
 });
 
 export async function GET(request: Request) {
@@ -98,7 +102,37 @@ export async function POST(request: Request) {
       currency,
       dueDate,
       items,
+      send,
     } = parsed.data;
+
+    const shouldSend = send === true;
+
+    // Sending requires a resolvable recipient
+    if (shouldSend) {
+      if (companyId) {
+        const company = await prisma.company.findUnique({
+          where: { id: companyId },
+          select: { contactEmail: true },
+        });
+        if (!company?.contactEmail) {
+          return NextResponse.json(
+            {
+              error:
+                "Cannot send: this company has no billing/contact email set.",
+            },
+            { status: 400 }
+          );
+        }
+      } else if (!userId) {
+        return NextResponse.json(
+          {
+            error:
+              "Cannot send: select a client (or set a company billing email) before sending.",
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     // Corporate invoices must reference a valid company; individual
     // invoices must reference a valid client when one is supplied.
@@ -141,7 +175,7 @@ export async function POST(request: Request) {
           discount,
           total,
           currency,
-          status: "DRAFT",
+          status: shouldSend ? "SENT" : "DRAFT",
           dueDate: new Date(dueDate),
           items: {
             create: items.map((item) => ({
@@ -170,6 +204,24 @@ export async function POST(request: Request) {
 
       return created;
     });
+
+    // Email ONLY on an explicit Send Invoice action — never for drafts
+    if (shouldSend) {
+      const paid = invoice.payments.reduce(
+        (sum, payment) => sum + toNumber(payment.amount),
+        0
+      );
+
+      await notifyInvoiceRecipient({
+        invoiceNumber: invoice.invoiceNumber,
+        total: Number(invoice.total),
+        amountDue: Math.max(Number(invoice.total) - paid, 0),
+        dueDate: invoice.dueDate,
+        description: invoice.description,
+        user: invoice.user,
+        company: invoice.company,
+      });
+    }
 
     return NextResponse.json(
       { invoice },

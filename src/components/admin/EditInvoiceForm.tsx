@@ -82,6 +82,9 @@ export default function EditInvoiceForm({
   const [discount, setDiscount] = useState(initial.discount);
   const [currency, setCurrency] = useState(initial.currency);
   const [items, setItems] = useState<ItemDraft[]>(initial.items);
+  // Explicit admin action: false = Save Changes (preserves status, no email);
+  // true = Send/Resend Invoice (status SENT + email to recipient)
+  const [send, setSend] = useState(false);
 
   const subtotal = useMemo(
     () =>
@@ -112,9 +115,10 @@ export default function EditInvoiceForm({
     appt.ownerId ? relevantOwnerIds.includes(appt.ownerId) : false
   );
 
-  async function handleSave(e: React.FormEvent) {
+  async function handleSave(e: React.FormEvent, sendNow: boolean) {
     e.preventDefault();
     setError(null);
+    setSend(sendNow);
 
     if (!dueDate) {
       setError("Please choose a due date.");
@@ -149,6 +153,7 @@ export default function EditInvoiceForm({
             note: item.note.trim() || null,
             appointmentId: item.appointmentId || null,
           })),
+          send: sendNow,
         }),
       });
 
@@ -179,7 +184,10 @@ export default function EditInvoiceForm({
   }
 
   return (
-    <form onSubmit={handleSave} className="w-full space-y-6">
+    <form
+      onSubmit={(e) => handleSave(e, false)}
+      className="w-full space-y-6"
+    >
       {/* Recipient */}
       <section>
         <h3 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
@@ -506,11 +514,22 @@ export default function EditInvoiceForm({
       <div className="flex flex-wrap gap-3">
         <button
           type="submit"
+          onClick={(e) => handleSave(e, false)}
+          disabled={saving}
+          className="min-h-[44px] rounded-lg border border-teal-600 px-6 py-2.5 text-sm font-semibold text-teal-700 hover:bg-teal-50 disabled:opacity-50"
+        >
+          {saving && !send ? "Saving..." : "Save Changes"}
+        </button>
+
+        <button
+          type="submit"
+          onClick={(e) => handleSave(e, true)}
           disabled={saving}
           className="btn-primary !px-6 !py-2.5 text-sm min-h-[44px] disabled:opacity-50"
         >
-          {saving ? "Saving..." : "Save Changes"}
+          {saving && send ? "Sending..." : "Send / Resend Invoice"}
         </button>
+
         <button
           type="button"
           onClick={() => setOpen(false)}
@@ -520,6 +539,12 @@ export default function EditInvoiceForm({
           Cancel
         </button>
       </div>
+
+      <p className="text-xs text-gray-500">
+        Save Changes preserves the current status and never sends an email.
+        Send / Resend Invoice marks it SENT and emails the recipient — use it
+        only when you intend to send.
+      </p>
     </form>
   );
 }

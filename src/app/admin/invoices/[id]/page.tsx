@@ -304,21 +304,22 @@ export default async function AdminInvoiceDetailPage({
           </dl>
         </div>
 
-        {/* Manual send — invoices are NEVER emailed automatically. This
-            button is the only way an invoice email goes out, and it fires
-            only when Dr. CBJ explicitly confirms the send action. */}
-        {invoice.status === "DRAFT" && (
+        {/* Manual send/resend — invoices are NEVER emailed automatically.
+            This button is the only way an invoice email goes out, and it
+            fires only when Dr. CBJ explicitly confirms the action. */}
+        {(invoice.status === "DRAFT" || invoice.status === "SENT") && (
           <div className="card mb-8 border-2 border-dashed border-teal-300">
             <h2 className="text-lg font-bold text-teal-900 mb-2">
-              Send Invoice
+              {invoice.status === "SENT" ? "Resend Invoice" : "Send Invoice"}
             </h2>
             <p className="text-sm text-gray-600 mb-4">
-              This invoice is a draft. Sending is always manual — use the
-              button below to email it to{" "}
+              {invoice.status === "DRAFT"
+                ? "This invoice is a draft. Sending is always manual — use the button below to email it now. Sending changes its status to SENT and makes it visible to the recipient."
+                : "This invoice has already been sent. Editing it never resends — use this button only when you deliberately want to email it again."}{" "}
+              Recipient:{" "}
               {isCorporate && invoice.company
                 ? `${invoice.company.companyName} (${invoice.company.contactEmail || "no billing email set"})`
-                : invoice.user?.email || "the client"}{" "}
-              now.
+                : invoice.user?.email || "the client"}
             </p>
             <SendInvoiceButton
               invoiceId={invoice.id}
@@ -327,6 +328,7 @@ export default async function AdminInvoiceDetailPage({
                   ? `${invoice.company.companyName}${invoice.company.contactEmail ? ` (${invoice.company.contactEmail})` : ""}`
                   : invoice.user?.email || "the client"
               }
+              currentStatus={invoice.status}
             />
           </div>
         )}

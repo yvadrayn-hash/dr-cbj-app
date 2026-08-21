@@ -54,6 +54,9 @@ export default function InvoiceForm({
   const [dueDate, setDueDate] = useState("");
   const [discount, setDiscount] = useState("0");
   const [items, setItems] = useState<LineItem[]>([emptyItem()]);
+  // Explicit admin choice: false = Save as Draft (no email, admin-only);
+  // true = Send Invoice (status SENT + email to recipient)
+  const [send, setSend] = useState(false);
 
   const selectedCompany = companies.find((c) => c.id === companyId);
 
@@ -84,9 +87,10 @@ export default function InvoiceForm({
     setError(null);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent, sendNow: boolean) {
     e.preventDefault();
     setError(null);
+    setSend(sendNow);
 
     if (!dueDate) {
       setError("Please choose a due date.");
@@ -134,6 +138,7 @@ export default function InvoiceForm({
           currency: "USD",
           dueDate,
           items: payloadItems,
+          send: sendNow,
         }),
       });
 
@@ -165,7 +170,10 @@ export default function InvoiceForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card w-full">
+    <form
+      onSubmit={(e) => handleSubmit(e, false)}
+      className="card w-full"
+    >
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-bold text-teal-900">Create New Invoice</h3>
         <button
@@ -443,25 +451,41 @@ export default function InvoiceForm({
         </p>
       )}
 
-      <div className="flex justify-end gap-3">
+      <div className="flex flex-wrap justify-end gap-3">
         <button
           type="button"
           onClick={() => {
             reset();
             setOpen(false);
           }}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          className="min-h-[44px] rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
         >
           Cancel
         </button>
+
         <button
           type="submit"
+          onClick={(e) => handleSubmit(e, false)}
           disabled={saving}
-          className="btn-primary !px-5 !py-2 text-sm disabled:opacity-50"
+          className="min-h-[44px] rounded-lg border border-teal-600 px-5 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50 disabled:opacity-50"
         >
-          {saving ? "Creating..." : "Create Invoice"}
+          {saving && !send ? "Saving..." : "Save as Draft"}
+        </button>
+
+        <button
+          type="submit"
+          onClick={(e) => handleSubmit(e, true)}
+          disabled={saving}
+          className="btn-primary !px-5 !py-2 text-sm min-h-[44px] disabled:opacity-50"
+        >
+          {saving && send ? "Sending..." : "Send Invoice"}
         </button>
       </div>
+
+      <p className="mt-3 text-xs text-gray-500">
+        Save as Draft keeps the invoice admin-only and sends no email. Send
+        Invoice marks it SENT and emails the recipient immediately.
+      </p>
     </form>
   );
 }

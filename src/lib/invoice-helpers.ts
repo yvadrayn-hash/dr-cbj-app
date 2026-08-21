@@ -1,7 +1,13 @@
 // Server-side invoice helper functions
 // Only imported by API routes and server components — not client components
 import { prisma } from "@/lib/prisma";
-import { toNumber, computeInvoiceStatus, InvoiceStatus } from "@/lib/invoices";
+import {
+  toNumber,
+  computeInvoiceStatus,
+  formatMoney,
+  InvoiceStatus,
+} from "@/lib/invoices";
+import { sendInvoiceEmail, getAppUrl } from "@/lib/email";
 
 /**
  * Recalculate the invoice subtotal (from line items) and total (subtotal − discount).
@@ -93,4 +99,87 @@ export async function getAmountPaid(invoiceId: string): Promise<number> {
   });
 
   return toNumber(result._sum.amount);
+}
+
+type RecipientInvoice = {
+  invoiceNumber: string;
+  total: number;
+  amountDue: number;
+  dueDate: Date;
+  description?: string | null;
+  user?: { id: string; email: string | null; name: string | null } | null;
+  company?: {
+    companyName: string;
+    contactName?: string | null;
+    contactEmail?: string | null;
+  } | null;
+};
+
+/**
+ * Email an invoice to its recipient:
+ * - corporate invoices go to the company's billing contact only
+ *   (individual employees are never emailed)
+ * - individual invoices go to the client, plus an in-app notification
+ *
+ * Called ONLY by explicit admin send/resend actions — never automatically.
+ */
+export async function notifyInvoiceRecipient(
+  invoice: RecipientInvoice,
+  options: { inAppNotification?: boolean } = {}
+): Promise<void> {
+  const { inAppNotification = true } = options;
+
+  // Corporate invoices go to the company's billing contact
+  if (invoice.company) {
+    if (!invoice.company.contactEmail) return;
+
+    try {
+      await sendInvoiceEmail({
+        to: invoice.company.contactEmail,
+        subject: `New Invoice ${invoice.invoiceNumber} — ${invoice.company.companyName}`,
+        title: "New Invoice Created",
+        message: `Dear ${invoice.company.contactName || invoice.company.companyName}, a new invoice (${invoice.invoiceNumber}) has been issued to ${invoice.company.companyName} with a total of ${formatMoney(invoice.total)}.`,
+        invoiceNumber: invoice.invoiceNumber,
+        description: invoice.description || undefined,
+        total: formatMoney(invoice.total),
+        amountDue: formatMoney(invoice.amountDue),
+        dueDate: invoice.dueDate.toLocaleDateString(),
+        dashboardUrl: `${getAppUrl()}/dashboard/billing`,
+      });
+    } catch (error) {
+      console.error("Corporate invoice email failed:", error);
+    }
+
+    return;
+  }
+
+  if (!invoice.user?.id || !invoice.user?.email) return;
+
+  if (inAppNotification) {
+    await prisma.notification.create({
+      data: {
+        userId: invoice.user.id,
+        title: "Invoice Sent",
+        message: `Invoice ${invoice.invoiceNumber} for ${formatMoney(invoice.total)} is now due on ${invoice.dueDate.toLocaleDateString()}.`,
+        type: "INVOICE_SENT",
+      },
+    });
+  }
+
+  try {
+    await sendInvoiceEmail({
+      to: invoice.user.email,
+      subject: `New Invoice ${invoice.invoiceNumber}`,
+      title: "New Invoice Created",
+      message: `A new invoice (${invoice.invoiceNumber}) has been issued to you with a total of ${formatMoney(invoice.total)}.`,
+      invoiceNumber: invoice.invoiceNumber,
+      description: invoice.description || undefined,
+      total: formatMoney(invoice.total),
+      amountDue: formatMoney(invoice.amountDue),
+      dueDate: invoice.dueDate.toLocaleDateString(),
+      dashboardUrl: `${getAppUrl()}/dashboard/billing`,
+    });
+  } catch (error) {
+    console.error("Invoice email failed:", error);
+  }
 }
