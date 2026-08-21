@@ -4,26 +4,44 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { generateInvoiceNumber } from "@/lib/invoices";
 
+const MAX_AMOUNT = 1_000_000;
+
 const invoiceItemSchema = z.object({
-  description: z.string().min(1, "Item description is required"),
-  quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  unitPrice: z.number().min(0, "Unit price is required"),
-  employeeId: z.string().optional(),
-  appointmentId: z.string().optional(),
+  description: z
+    .string()
+    .min(1, "Item description is required")
+    .max(300, "Description is too long"),
+  quantity: z
+    .number()
+    .int("Quantity must be a whole number")
+    .min(1, "Quantity must be at least 1")
+    .max(1000, "Quantity is too large"),
+  unitPrice: z
+    .number()
+    .min(0, "Unit price is required")
+    .max(MAX_AMOUNT, "Unit price is too large"),
+  employeeId: z.string().max(64).optional(),
+  appointmentId: z.string().max(64).optional(),
   sessionDate: z.string().optional(),
-  serviceType: z.string().optional(),
-  note: z.string().optional(),
+  serviceType: z.string().max(120).optional(),
+  note: z.string().max(200).optional(),
 });
 
 const createInvoiceSchema = z.object({
-  userId: z.string().optional(),
-  companyId: z.string().optional(),
-  appointmentId: z.string().optional(),
-  description: z.string().optional(),
-  discount: z.number().min(0).default(0),
-  currency: z.string().default("USD"),
+  userId: z.string().max(64).optional(),
+  companyId: z.string().max(64).optional(),
+  appointmentId: z.string().max(64).optional(),
+  description: z.string().max(500).optional(),
+  discount: z.number().min(0).max(MAX_AMOUNT).default(0),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/, "Currency must be a 3-letter code")
+    .default("USD"),
   dueDate: z.string().min(1, "Due date is required"),
-  items: z.array(invoiceItemSchema).min(1, "At least one line item is required"),
+  items: z
+    .array(invoiceItemSchema)
+    .min(1, "At least one line item is required")
+    .max(200, "Too many line items"),
 });
 
 export async function GET(request: Request) {

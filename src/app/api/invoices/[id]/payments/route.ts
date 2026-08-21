@@ -5,9 +5,15 @@ import { z } from "zod";
 import { toNumber, formatMoney, generateTransactionReference } from "@/lib/invoices";
 import { sendPaymentSubmittedAdminEmail } from "@/lib/email";
 import { siteConfig } from "@/lib/site";
+import { rateLimit } from "@/lib/rate-limit";
+
+const MAX_PAYMENT_AMOUNT = 1_000_000;
 
 const submitPaymentSchema = z.object({
-  amount: z.number().positive("Amount must be greater than 0"),
+  amount: z
+    .number()
+    .positive("Amount must be greater than 0")
+    .max(MAX_PAYMENT_AMOUNT, "Amount is too large"),
   paymentMethod: z.enum(["MANUAL", "CARD", "BANK_TRANSFER", "CASH"]),
   reference: z.string().max(120).optional(),
 });
@@ -20,6 +26,15 @@ export async function POST(
 
   if (!session?.user?.id || session.user.role !== "CLIENT") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
+  // Abuse protection for payment declarations
+  const limit = rateLimit(`pay:${session.user.id}`, 10, 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many submissions. Please wait a moment and try again." },
+      { status: 429 }
+    );
   }
 
   const { id } = await context.params;

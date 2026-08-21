@@ -17,7 +17,7 @@ export async function PATCH(
 
   const adminNotes =
     typeof body.adminNotes === "string"
-      ? body.adminNotes.trim()
+      ? body.adminNotes.trim().slice(0, 5000)
       : "";
 
   const appointment = await prisma.appointment.update({

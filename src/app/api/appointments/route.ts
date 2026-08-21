@@ -1,15 +1,25 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sendAppointmentEmail, getAppUrl } from "@/lib/email";
 import { siteConfig } from "@/lib/site";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const appointmentSchema = z.object({
-  fullName: z.string().min(2, "Full name is required"),
-  email: z.string().email("Invalid email address"),
-  phone: z.string().min(7, "Phone number is required"),
-  preferredDate: z.string().min(1, "Preferred date is required"),
-  preferredTime: z.string().min(1, "Preferred time is required"),
+  fullName: z
+    .string()
+    .min(2, "Full name is required")
+    .max(100, "Name is too long"),
+  email: z.string().email("Invalid email address").max(254),
+  phone: z
+    .string()
+    .min(7, "Phone number is required")
+    .max(20, "Phone number is too long"),
+  preferredDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
+  preferredTime: z.string().min(1).max(20),
   sessionType: z.enum([
     "INITIAL_CONSULTATION",
     "FOLLOW_UP",
@@ -18,11 +28,20 @@ const appointmentSchema = z.object({
     "TRAINING",
   ]),
   sessionMode: z.enum(["IN_PERSON", "VIRTUAL"]),
-  notes: z.string().optional(),
+  notes: z.string().max(2000).optional(),
 });
 
 export async function POST(request: Request) {
   try {
+    // Abuse protection for public booking
+    const limit = rateLimit(`booking:${getClientIp(request)}`, 10, 60 * 1000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many booking attempts. Please wait a moment and try again." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const parsed = appointmentSchema.safeParse(body);
 
@@ -45,19 +64,80 @@ export async function POST(request: Request) {
       notes,
     } = parsed.data;
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        fullName,
-        email: email.toLowerCase(),
-        phone,
-        preferredDate: new Date(preferredDate),
-        preferredTime,
-        sessionType,
-        sessionMode,
-        notes,
-        status: "PENDING",
-      },
-    });
+    const requestedDate = new Date(`${preferredDate}T00:00:00`);
+
+    if (Number.isNaN(requestedDate.getTime())) {
+      return NextResponse.json(
+        { error: "Invalid date" },
+        { status: 400 }
+      );
+    }
+
+    // Reject dates more than 2 years in the future or in the past
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const twoYearsOut = new Date(now);
+    twoYearsOut.setFullYear(twoYearsOut.getFullYear() + 2);
+
+    if (requestedDate < now || requestedDate > twoYearsOut) {
+      return NextResponse.json(
+        { error: "Please choose a valid upcoming date." },
+        { status: 400 }
+      );
+    }
+
+    // —— Double-booking protection (server-side) ——
+    // A serializable transaction re-checks availability at write time so two
+    // simultaneous requests for the same slot cannot both succeed. Cancelled
+    // appointments do not block a slot.
+    let appointment;
+    try {
+      appointment = await prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.appointment.findFirst({
+            where: {
+              preferredDate: requestedDate,
+              preferredTime,
+              status: { not: "CANCELLED" },
+            },
+            select: { id: true },
+          });
+
+          if (existing) {
+            throw new Error("SLOT_TAKEN");
+          }
+
+          return tx.appointment.create({
+            data: {
+              fullName,
+              email: email.toLowerCase(),
+              phone,
+              preferredDate: requestedDate,
+              preferredTime,
+              sessionType,
+              sessionMode,
+              notes,
+              status: "PENDING",
+            },
+          });
+        },
+        { isolationLevel: "Serializable" }
+      );
+    } catch (txError) {
+      if (
+        txError instanceof Error &&
+        txError.message === "SLOT_TAKEN"
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "That time was just booked. Please choose another available time.",
+          },
+          { status: 409 }
+        );
+      }
+      throw txError;
+    }
 
     // —— Emails (sent only after the DB write succeeds; failures are logged,
     //    never rolled back) ——
@@ -121,6 +201,14 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
+    // Appointment data (incl. reason-for-visit notes) is sensitive —
+    // only admins may list it
+    const session = await auth();
+
+    if (!session?.user || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
 

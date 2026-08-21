@@ -9,15 +9,27 @@ import {
 import { sendInvoiceEmail, sendPaymentRecordedEmail, getAppUrl } from "@/lib/email";
 import { formatMoney, toNumber } from "@/lib/invoices";
 
+const MAX_AMOUNT = 1_000_000;
+
 const editableItemSchema = z.object({
-  description: z.string().min(1, "Item description is required"),
-  quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  unitPrice: z.number().min(0, "Unit price is required"),
-  employeeId: z.string().nullable().optional(),
-  appointmentId: z.string().nullable().optional(),
+  description: z
+    .string()
+    .min(1, "Item description is required")
+    .max(300, "Description is too long"),
+  quantity: z
+    .number()
+    .int("Quantity must be a whole number")
+    .min(1, "Quantity must be at least 1")
+    .max(1000, "Quantity is too large"),
+  unitPrice: z
+    .number()
+    .min(0, "Unit price is required")
+    .max(MAX_AMOUNT, "Unit price is too large"),
+  employeeId: z.string().max(64).nullable().optional(),
+  appointmentId: z.string().max(64).nullable().optional(),
   sessionDate: z.string().nullable().optional(),
-  serviceType: z.string().nullable().optional(),
-  note: z.string().nullable().optional(),
+  serviceType: z.string().max(120).nullable().optional(),
+  note: z.string().max(200).nullable().optional(),
 });
 
 const updateInvoiceSchema = z.object({
@@ -25,13 +37,20 @@ const updateInvoiceSchema = z.object({
     .enum(["DRAFT", "SENT", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"])
     .optional(),
   dueDate: z.string().min(1, "Due date is required").optional(),
-  description: z.string().nullable().optional(),
-  userId: z.string().nullable().optional(),
-  companyId: z.string().nullable().optional(),
-  appointmentId: z.string().nullable().optional(),
-  discount: z.number().min(0).optional(),
-  currency: z.string().min(1).optional(),
-  items: z.array(editableItemSchema).optional(),
+  description: z.string().max(500).nullable().optional(),
+  userId: z.string().max(64).nullable().optional(),
+  companyId: z.string().max(64).nullable().optional(),
+  appointmentId: z.string().max(64).nullable().optional(),
+  discount: z.number().min(0).max(MAX_AMOUNT).optional(),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/, "Currency must be a 3-letter code")
+    .optional(),
+  items: z
+    .array(editableItemSchema)
+    .min(1, "At least one line item is required")
+    .max(200, "Too many line items")
+    .optional(),
 });
 
 async function notifyRecipient(invoice: {

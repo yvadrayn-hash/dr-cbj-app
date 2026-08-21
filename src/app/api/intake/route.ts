@@ -4,15 +4,24 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const intakeSchema = z.object({
-  fullName: z.string().min(2, "Full name is required"),
-  dateOfBirth: z.string().optional(),
-  phone: z.string().min(7, "Phone number is required"),
-  emergencyContact: z.string().optional(),
-  reasonForVisit: z.string().min(5, "Reason for visit is required"),
-  currentSymptoms: z.string().optional(),
-  medications: z.string().optional(),
-  previousTreatment: z.string().optional(),
-  goals: z.string().optional(),
+  fullName: z
+    .string()
+    .min(2, "Full name is required")
+    .max(100, "Name is too long"),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date").optional(),
+  phone: z
+    .string()
+    .min(7, "Phone number is required")
+    .max(20, "Phone number is too long"),
+  emergencyContact: z.string().max(100).optional(),
+  reasonForVisit: z
+    .string()
+    .min(5, "Reason for visit is required")
+    .max(2000, "Reason is too long"),
+  currentSymptoms: z.string().max(2000).optional(),
+  medications: z.string().max(1000).optional(),
+  previousTreatment: z.string().max(1000).optional(),
+  goals: z.string().max(2000).optional(),
   consentGiven: z.literal(true, {
     error: "Consent is required",
   }),

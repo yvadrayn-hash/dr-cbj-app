@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { z } from "zod";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { detectCrisis, crisisResponse, generateResponse } from "@/lib/chat";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const systemPrompt = `You are Dr. CBJ's AI wellness assistant for Manor Group Health+ in Jamaica.
 
@@ -60,13 +62,29 @@ async function generateOpenRouterResponse(
 }
 
 const messageSchema = z.object({
-  message: z.string().min(1, "Message is required"),
-  sessionId: z.string().optional(),
+  message: z.string().min(1, "Message is required").max(2000),
+  sessionId: z
+    .string()
+    .max(64)
+    .regex(/^[a-zA-Z0-9_-]+$/, "Invalid session identifier")
+    .optional(),
   isAnonymous: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
   try {
+    // Abuse protection for the AI endpoint
+    const limit = rateLimit(`chat:${getClientIp(request)}`, 30, 60 * 1000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many messages. Please wait a moment and try again." },
+        { status: 429 }
+      );
+    }
+
+    const session = await auth();
+    const authenticatedUserId = session?.user?.id ?? null;
+
     const body = await request.json();
     const parsed = messageSchema.safeParse(body);
 
@@ -85,8 +103,29 @@ export async function POST(request: Request) {
     if (isCrisis) {
       response = crisisResponse;
     } else {
-      const recentMessages = sessionId
-        ? await prisma.chatMessage.findMany({
+      let recentMessages: ChatHistoryItem[] = [];
+
+      if (sessionId) {
+        const existingSession = await prisma.chatSession.findUnique({
+          where: { id: sessionId },
+          select: { id: true, userId: true },
+        });
+
+        if (existingSession) {
+          // Ownership check: a session bound to a user may only be read by
+          // that user. Unowned (anonymous legacy) sessions can be claimed by
+          // the first authenticated user who continues them.
+          if (
+            existingSession.userId &&
+            existingSession.userId !== authenticatedUserId
+          ) {
+            return NextResponse.json(
+              { error: "Chat session not found." },
+              { status: 404 }
+            );
+          }
+
+          recentMessages = await prisma.chatMessage.findMany({
             where: { sessionId },
             orderBy: { createdAt: "desc" },
             take: 8,
@@ -94,8 +133,9 @@ export async function POST(request: Request) {
               role: true,
               content: true,
             },
-          })
-        : [];
+          });
+        }
+      }
 
       const history = recentMessages.reverse();
       response =
@@ -103,20 +143,53 @@ export async function POST(request: Request) {
         generateResponse(message, history);
     }
 
-    let session;
+    let activeSessionId: string | undefined;
+
     if (sessionId) {
-      session = await prisma.chatSession.upsert({
+      const existingSession = await prisma.chatSession.findUnique({
         where: { id: sessionId },
-        update: { updatedAt: new Date() },
-        create: {
-          id: sessionId,
-          isAnonymous: isAnonymous ?? true,
-        },
+        select: { id: true, userId: true },
       });
+
+      if (existingSession) {
+        if (
+          existingSession.userId &&
+          existingSession.userId !== authenticatedUserId
+        ) {
+          return NextResponse.json(
+            { error: "Chat session not found." },
+            { status: 404 }
+          );
+        }
+
+        // Claim unowned sessions for authenticated users so future access
+        // is restricted to them
+        await prisma.chatSession.update({
+          where: { id: sessionId },
+          data: {
+            updatedAt: new Date(),
+            ...(authenticatedUserId && !existingSession.userId
+              ? { userId: authenticatedUserId }
+              : {}),
+          },
+        });
+
+        activeSessionId = sessionId;
+      } else {
+        await prisma.chatSession.create({
+          data: {
+            id: sessionId,
+            userId: authenticatedUserId,
+            isAnonymous: authenticatedUserId ? false : (isAnonymous ?? true),
+          },
+        });
+
+        activeSessionId = sessionId;
+      }
 
       await prisma.chatMessage.create({
         data: {
-          sessionId: session.id,
+          sessionId: activeSessionId,
           role: "USER",
           content: message,
           isCrisis,
@@ -125,7 +198,7 @@ export async function POST(request: Request) {
 
       await prisma.chatMessage.create({
         data: {
-          sessionId: session.id,
+          sessionId: activeSessionId,
           role: "ASSISTANT",
           content: response,
           isCrisis,
@@ -136,7 +209,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       response,
       isCrisis,
-      sessionId: session?.id || sessionId,
+      sessionId: activeSessionId || sessionId,
     });
   } catch (error) {
     console.error("Chat error:", error);
