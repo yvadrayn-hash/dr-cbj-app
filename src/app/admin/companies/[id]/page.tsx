@@ -1,6 +1,11 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { toNumber, formatMoney, invoiceStatusColor } from "@/lib/invoices";
+import {
+  toNumber,
+  formatMoney,
+  invoiceStatusColor,
+  isOutstandingInvoice,
+} from "@/lib/invoices";
 import type { InvoiceStatus } from "@/lib/invoices";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -78,11 +83,8 @@ export default async function CompanyDetailPage({
   }
 
   const outstanding = company.invoices
-    .filter(
-      (invoice) =>
-        invoice.status === "SENT" ||
-        invoice.status === "PARTIALLY_PAID" ||
-        invoice.status === "OVERDUE"
+    .filter((invoice) =>
+      isOutstandingInvoice(invoice.status, invoice.dueDate)
     )
     .reduce((sum, invoice) => {
       const paid = invoice.payments.reduce((s, p) => s + toNumber(p.amount), 0);

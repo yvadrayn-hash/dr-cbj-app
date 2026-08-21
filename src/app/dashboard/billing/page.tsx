@@ -5,6 +5,8 @@ import {
   formatMoney,
   invoiceStatusColor,
   paymentStatusColor,
+  isOutstandingInvoice,
+  invoiceEffectiveStatus,
 } from "@/lib/invoices";
 import type { InvoiceStatus, PaymentStatus } from "@/lib/invoices";
 import { redirect } from "next/navigation";
@@ -46,22 +48,16 @@ export default async function BillingPage({
 
   const filteredInvoices =
     filter === "unpaid"
-      ? invoices.filter(
-          (invoice) =>
-            invoice.status === "SENT" ||
-            invoice.status === "PARTIALLY_PAID" ||
-            invoice.status === "OVERDUE"
+      ? invoices.filter((invoice) =>
+          isOutstandingInvoice(invoice.status, invoice.dueDate)
         )
       : filter === "paid"
       ? invoices.filter((invoice) => invoice.status === "PAID")
       : invoices;
 
   const outstanding = invoices
-    .filter(
-      (invoice) =>
-        invoice.status === "SENT" ||
-        invoice.status === "PARTIALLY_PAID" ||
-        invoice.status === "OVERDUE"
+    .filter((invoice) =>
+      isOutstandingInvoice(invoice.status, invoice.dueDate)
     )
     .reduce((sum, invoice) => {
       const paid = invoice.payments
@@ -158,10 +154,18 @@ export default async function BillingPage({
 
                     <span
                       className={`inline-flex self-start rounded-full px-3 py-1 text-xs font-semibold ${
-                        invoiceStatusColor(invoice.status as InvoiceStatus)
+                        invoiceStatusColor(
+                          invoiceEffectiveStatus(
+                            invoice.status as InvoiceStatus,
+                            invoice.dueDate
+                          )
+                        )
                       }`}
                     >
-                      {invoice.status.replaceAll("_", " ")}
+                      {invoiceEffectiveStatus(
+                        invoice.status as InvoiceStatus,
+                        invoice.dueDate
+                      ).replaceAll("_", " ")}
                     </span>
                   </div>
 

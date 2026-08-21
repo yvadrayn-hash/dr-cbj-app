@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { AppointmentStatus } from "@prisma/client";
+import { formatMoney, isOutstandingInvoice } from "@/lib/invoices";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import AppointmentActions from "@/components/admin/AppointmentActions";
@@ -39,12 +40,17 @@ export default async function AdminPage() {
     include: { payments: { where: { status: "COMPLETED" } } },
   });
 
-  const outstandingInvoices = invoices.filter(
-    (invoice) =>
-      invoice.status === "SENT" ||
-      invoice.status === "PARTIALLY_PAID" ||
-      invoice.status === "OVERDUE"
-  ).length;
+  const outstandingBalance = invoices
+    .filter((invoice) =>
+      isOutstandingInvoice(invoice.status, invoice.dueDate)
+    )
+    .reduce((sum, invoice) => {
+      const paid = invoice.payments.reduce(
+        (s, p) => s + Number(p.amount),
+        0
+      );
+      return sum + Math.max(Number(invoice.total) - paid, 0);
+    }, 0);
 
   return (
     <div className="py-12">
@@ -93,9 +99,9 @@ export default async function AdminPage() {
           </div>
 
           <div className="card text-center">
-            <p className="text-sm text-gray-500 mb-1">Outstanding Invoices</p>
+            <p className="text-sm text-gray-500 mb-1">Outstanding Balance</p>
             <p className="text-3xl font-bold text-amber-500">
-              {outstandingInvoices}
+              {formatMoney(outstandingBalance)}
             </p>
           </div>
 

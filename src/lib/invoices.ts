@@ -15,18 +15,63 @@ export type PaymentMethod = "MANUAL" | "CARD" | "BANK_TRANSFER" | "CASH";
 
 /**
  * Coerce a Decimal / number / string to a JS number.
- * Prisma Decimal objects expose `.toNumber()`.
+ * Handles Prisma Decimal objects (with or without .toNumber), numeric
+ * strings (incl. currency-formatted), and plain numbers. Returns 0 for
+ * anything unparseable rather than NaN so balances always compute.
  */
 export function toNumber(
   value: unknown
 ): number {
   if (value == null) return 0;
-  if (typeof value === "number") return value;
-  if (typeof value === "string") return parseFloat(value) || 0;
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") return parseMoneyString(value);
   if (typeof (value as { toNumber?: unknown }).toNumber === "function") {
-    return (value as { toNumber: () => number }).toNumber();
+    const n = (value as { toNumber: () => number }).toNumber();
+    return Number.isFinite(n) ? n : 0;
   }
-  return parseFloat(String(value)) || 0;
+  // Decimal-like objects (e.g. decimal.js instances without toNumber bound)
+  if (typeof (value as { valueOf?: unknown }).valueOf === "function") {
+    const n = Number((value as { valueOf: () => unknown }).valueOf());
+    if (Number.isFinite(n)) return n;
+  }
+  return parseMoneyString(String(value));
+}
+
+function parseMoneyString(raw: string): number {
+  const cleaned = raw.replace(/[^0-9.\-]/g, "");
+  const n = parseFloat(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Effective display status: an invoice that is still SENT but past its due
+ * date is treated as OVERDUE at read time (no background job exists).
+ */
+export function invoiceEffectiveStatus(
+  status: InvoiceStatus,
+  dueDate: Date | string
+): InvoiceStatus {
+  if (status !== "SENT") return status;
+  const due = typeof dueDate === "string" ? new Date(dueDate) : dueDate;
+  const endOfDay = new Date(due);
+  endOfDay.setHours(23, 59, 59, 999);
+  return new Date() > endOfDay ? "OVERDUE" : "SENT";
+}
+
+/**
+ * Whether an invoice currently has money owed:
+ * SENT / PARTIALLY_PAID / OVERDUE (including dynamically-overdue SENT).
+ */
+export function isOutstandingInvoice(
+  status: InvoiceStatus,
+  dueDate: Date | string
+): boolean {
+  const effective = invoiceEffectiveStatus(status, dueDate);
+  return (
+    effective === "SENT" ||
+    effective === "PARTIALLY_PAID" ||
+    effective === "OVERDUE"
+  );
 }
 
 /**

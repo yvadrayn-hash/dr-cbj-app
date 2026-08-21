@@ -1,6 +1,12 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { toNumber, formatMoney, invoiceStatusColor } from "@/lib/invoices";
+import {
+  toNumber,
+  formatMoney,
+  invoiceStatusColor,
+  isOutstandingInvoice,
+  invoiceEffectiveStatus,
+} from "@/lib/invoices";
 import type { InvoiceStatus } from "@/lib/invoices";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -57,11 +63,8 @@ export default async function AdminInvoicesPage({
   ]);
 
   const outstanding = invoices
-    .filter(
-      (invoice) =>
-        invoice.status === "SENT" ||
-        invoice.status === "PARTIALLY_PAID" ||
-        invoice.status === "OVERDUE"
+    .filter((invoice) =>
+      isOutstandingInvoice(invoice.status, invoice.dueDate)
     )
     .reduce((sum, invoice) => {
       const paid = invoice.payments.reduce((s, p) => s + toNumber(p.amount), 0);
@@ -79,11 +82,8 @@ export default async function AdminInvoicesPage({
 
   const filteredInvoices =
     filter === "open"
-      ? invoices.filter(
-          (invoice) =>
-            invoice.status === "SENT" ||
-            invoice.status === "PARTIALLY_PAID" ||
-            invoice.status === "OVERDUE"
+      ? invoices.filter((invoice) =>
+          isOutstandingInvoice(invoice.status, invoice.dueDate)
         )
       : filter === "paid"
       ? invoices.filter(
@@ -271,10 +271,18 @@ export default async function AdminInvoicesPage({
                       <td className="py-4 pr-4">
                         <span
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                            invoiceStatusColor(invoice.status as InvoiceStatus)
+                            invoiceStatusColor(
+                              invoiceEffectiveStatus(
+                                invoice.status as InvoiceStatus,
+                                invoice.dueDate
+                              )
+                            )
                           }`}
                         >
-                          {invoice.status.replaceAll("_", " ")}
+                          {invoiceEffectiveStatus(
+                            invoice.status as InvoiceStatus,
+                            invoice.dueDate
+                          ).replaceAll("_", " ")}
                         </span>
                       </td>
 
