@@ -20,7 +20,7 @@ export const siteConfig = {
 
 export const services = [
   {
-    title: "Clinical & Behavioural Services",
+    title: "Clinical and Behavioural Services",
     icon: "\u{1F9E0}",
     items: [
       "Clinical psychological assessment",
@@ -32,7 +32,7 @@ export const services = [
     ],
   },
   {
-    title: "Child & Adolescent Services",
+    title: "Child and Adolescent Services",
     icon: "\u{1F467}",
     items: [
       "Child and adolescent psychological assessment",
@@ -44,7 +44,7 @@ export const services = [
     ],
   },
   {
-    title: "Neurodiversity & Special Educational Needs",
+    title: "Neurodiversity and Special Educational Needs",
     icon: "\u{1F9E9}",
     items: [
       "Neurodivergent child assessment and support",
@@ -57,7 +57,7 @@ export const services = [
     ],
   },
   {
-    title: "Educational & Psychological Assessment",
+    title: "Educational and Psychological Assessment",
     icon: "\u{1F4DA}",
     items: [
       "Educational psychological assessment",
@@ -69,7 +69,7 @@ export const services = [
     ],
   },
   {
-    title: "Therapy & Counselling",
+    title: "Therapy and Counselling",
     icon: "\u{1F4AC}",
     items: [
       "Individual therapy",
@@ -83,7 +83,7 @@ export const services = [
     ],
   },
   {
-    title: "Parenting & Family Support",
+    title: "Parenting and Family Support",
     icon: "\u{1F46A}",
     items: [
       "Parenting consultation",
@@ -95,7 +95,7 @@ export const services = [
     ],
   },
   {
-    title: "Training & Professional Development",
+    title: "Training and Professional Development",
     icon: "\u{1F393}",
     items: [
       "SEN training for educators",
@@ -120,7 +120,7 @@ export const services = [
     ],
   },
   {
-    title: "Mental Health & Wellness",
+    title: "Mental Health and Wellness",
     icon: "\u{1F33F}",
     items: [
       "Mental health education",

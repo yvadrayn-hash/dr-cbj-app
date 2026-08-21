@@ -105,7 +105,7 @@ export async function POST(
         data: admins.map((admin) => ({
           userId: admin.id,
           title: "Payment Submitted",
-          message: `${session.user.name ?? "A client"} submitted a payment of ${formatMoney(data.amount)} for invoice ${invoice.invoiceNumber}. Review and confirm it in Invoices & Payments.`,
+          message: `${session.user.name ?? "A client"} submitted a payment of ${formatMoney(data.amount)} for invoice ${invoice.invoiceNumber}. Review and confirm it in Invoices and Payments.`,
           type: "PAYMENT_SUBMITTED",
         })),
       });

@@ -32,7 +32,7 @@ export const crisisResponse = `I'm really concerned about what you've shared, an
 - **Crisis Hotline:** Contact your local mental health crisis line or go to the nearest hospital emergency room
 
 ðŸŒ **International:**
-- **United States:** 988 (Suicide & Crisis Lifeline)
+- **United States:** 988 (Suicide and Crisis Lifeline)
 - **United Kingdom:** 111 (NHS) or 999 (Emergency)
 - **International:** Visit https://findahelpline.com for resources in your country
 

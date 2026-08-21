@@ -96,7 +96,7 @@ export default async function AdminInvoicesPage({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <h1 className="section-title">Invoices & Payments</h1>
+            <h1 className="section-title">Invoices and Payments</h1>
             <p className="text-gray-600">
               Create invoices, record payments, and track client billing.
             </p>

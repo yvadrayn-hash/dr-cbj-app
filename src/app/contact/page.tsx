@@ -112,7 +112,7 @@ export default function ContactPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="text-teal-500">{"\u2713"}</span>
-                  Workshops & Training
+                  Workshops and Training
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="text-teal-500">{"\u2713"}</span>

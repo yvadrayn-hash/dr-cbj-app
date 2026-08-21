@@ -77,7 +77,7 @@ export default async function DashboardPage() {
             <div className="text-3xl mb-2">📚</div>
             <h3 className="font-semibold text-teal-900 mb-1">Wellness Resources</h3>
             <p className="text-2xl font-bold text-teal-600">10+</p>
-            <p className="text-sm text-gray-500">Articles & exercises</p>
+            <p className="text-sm text-gray-500">Articles and exercises</p>
           </div>
           <div className="card text-center">
             <div className="text-3xl mb-2">💬</div>
@@ -207,7 +207,7 @@ export default async function DashboardPage() {
                   <span className="text-2xl">💳</span>
                   <div>
                     <p className="font-semibold text-teal-900">
-                      Billing & Payments
+                      Billing and Payments
                     </p>
                     <p className="text-sm text-gray-500">
                       View your invoices and payment history

@@ -80,7 +80,7 @@ export default async function BillingPage({
           >
             ← Back to Dashboard
           </Link>
-          <h1 className="section-title">Billing & Payments</h1>
+          <h1 className="section-title">Billing and Payments</h1>
           <p className="text-gray-600">
             View your invoices and payment history. Payments are recorded by our
             office — contact us if you have any billing questions.
@@ -235,7 +235,7 @@ export default async function BillingPage({
                       href={`/dashboard/billing/invoices/${invoice.id}`}
                       className="inline-flex rounded-lg border border-teal-600 px-3 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-50"
                     >
-                      View Details & Pay →
+                      View Details and Pay →
                     </Link>
                   </div>
 

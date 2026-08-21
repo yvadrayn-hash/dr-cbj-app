@@ -79,7 +79,7 @@ export default function AppointmentScheduleEditor({
           disabled={saving}
           className="btn-primary !px-4 !py-2 text-sm disabled:opacity-50"
         >
-          {saving ? "Saving..." : "Save Date & Time"}
+          {saving ? "Saving..." : "Save Date and Time"}
         </button>
 
         {message && (

@@ -62,7 +62,7 @@ export default async function AdminPage() {
               href="/admin/invoices"
               className="btn-primary !px-4 !py-2 text-sm"
             >
-              Invoices & Payments
+              Invoices and Payments
             </Link>
 
             <Link
@@ -98,7 +98,7 @@ export default async function AdminPage() {
           </div>
         </div>
 
-        <div className="card overflow-x-auto">
+        <div className="card">
           <div className="mb-6">
             <h2 className="text-xl font-bold text-teal-900">
               Appointments
@@ -114,6 +114,108 @@ export default async function AdminPage() {
               No appointments yet.
             </p>
           ) : (
+            <>
+            {/* Mobile: responsive appointment cards */}
+            <div className="md:hidden space-y-4">
+              {appointments.map((appointment) => (
+                <div
+                  key={appointment.id}
+                  className="rounded-xl border border-gray-200 p-4"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-teal-900 break-words">
+                        {appointment.fullName}
+                      </p>
+                      <p className="text-sm text-gray-600 break-words">
+                        {appointment.email}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {appointment.phone}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`inline-flex self-start rounded-full px-3 py-1 text-xs font-semibold ${
+                        appointment.status === "CONFIRMED"
+                          ? "bg-teal-100 text-teal-800"
+                          : appointment.status === "COMPLETED"
+                          ? "bg-green-100 text-green-800"
+                          : appointment.status === "CANCELLED"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {appointment.status}
+                    </span>
+                  </div>
+
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm mb-4">
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        Date
+                      </dt>
+                      <dd className="mt-0.5">
+                        {appointment.preferredDate.toLocaleDateString()}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        Time
+                      </dt>
+                      <dd className="mt-0.5">{appointment.preferredTime}</dd>
+                    </div>
+
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        Session
+                      </dt>
+                      <dd className="mt-0.5">
+                        {appointment.sessionType
+                          .replaceAll("_", " ")
+                          .toLowerCase()
+                          .replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        Mode
+                      </dt>
+                      <dd className="mt-0.5">
+                        {appointment.sessionMode === "IN_PERSON"
+                          ? "In-Person"
+                          : "Virtual"}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  {appointment.notes && (
+                    <p className="text-xs text-gray-500 mb-4 break-words">
+                      {appointment.notes}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    <AppointmentActions
+                      appointmentId={appointment.id}
+                      currentStatus={appointment.status}
+                    />
+
+                    <Link
+                      href={`/admin/appointments/${appointment.id}`}
+                      className="inline-flex min-h-[40px] items-center whitespace-nowrap rounded-lg border border-teal-600 px-4 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+                    >
+                      View Details
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop/tablet: table */}
+            <div className="hidden md:block overflow-x-auto">
             <table className="w-full min-w-[950px] text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-left">
@@ -204,6 +306,8 @@ export default async function AdminPage() {
                 ))}
               </tbody>
             </table>
+            </div>
+            </>
           )}
         </div>
       </div>
