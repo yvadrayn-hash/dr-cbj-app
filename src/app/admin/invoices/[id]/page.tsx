@@ -10,9 +10,7 @@ import type { InvoiceStatus, PaymentStatus } from "@/lib/invoices";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import InvoiceItemsEditor from "@/components/admin/InvoiceItemsEditor";
-import InvoiceStatusUpdater from "@/components/admin/InvoiceStatusUpdater";
-import InvoiceDetailsEditor from "@/components/admin/InvoiceDetailsEditor";
+import EditInvoiceForm from "@/components/admin/EditInvoiceForm";
 import PaymentForm from "@/components/admin/PaymentForm";
 import SendInvoiceButton from "@/components/admin/SendInvoiceButton";
 
@@ -77,6 +75,37 @@ export default async function AdminInvoiceDetailPage({
       })
     : [];
 
+  // Sessions that can be linked to line items (client's or employees')
+  const ownerIds = [
+    ...(invoice.userId ? [invoice.userId] : []),
+    ...companyEmployees.map((e) => e.id),
+  ];
+
+  const linkedAppointments =
+    ownerIds.length > 0
+      ? await prisma.appointment.findMany({
+          where: { userId: { in: ownerIds } },
+          select: {
+            id: true,
+            userId: true,
+            preferredDate: true,
+            preferredTime: true,
+            sessionType: true,
+          },
+          orderBy: { preferredDate: "desc" },
+          take: 100,
+        })
+      : [];
+
+  const appointmentOptions = linkedAppointments.map((appt) => ({
+    id: appt.id,
+    ownerId: appt.userId,
+    label: `${appt.preferredDate.toLocaleDateString()} · ${appt.preferredTime} · ${appt.sessionType
+      .replaceAll("_", " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase())}`,
+  }));
+
   const amountPaid = invoice.payments
     .filter((payment) => payment.status === "COMPLETED")
     .reduce((sum, payment) => sum + toNumber(payment.amount), 0);
@@ -140,23 +169,46 @@ export default async function AdminInvoiceDetailPage({
           </div>
         </div>
 
-        {/* Bill To / Details */}
+        {/* Edit Invoice — full editing (recipient, status, details, line items) */}
+        <div className="card mb-8">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h2 className="text-lg font-bold text-teal-900">Edit Invoice</h2>
+          </div>
+
+          <EditInvoiceForm
+            invoiceId={invoice.id}
+            initial={{
+              userId: invoice.userId ?? "",
+              companyId: invoice.companyId ?? "",
+              status: invoice.status,
+              description: invoice.description ?? "",
+              dueDate: invoice.dueDate.toISOString().slice(0, 10),
+              discount: String(toNumber(invoice.discount)),
+              currency: invoice.currency,
+              items: invoice.items.map((item) => ({
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: String(toNumber(item.unitPrice)),
+                employeeId: item.employeeId ?? "",
+                sessionDate: item.sessionDate
+                  ? item.sessionDate.toISOString().slice(0, 10)
+                  : "",
+                serviceType: item.serviceType ?? "",
+                note: item.note ?? "",
+                appointmentId: item.appointmentId ?? "",
+              })),
+            }}
+            clients={clients}
+            companies={companies}
+            employees={companyEmployees.map((e) => ({ id: e.id, name: e.name }))}
+            appointmentOptions={appointmentOptions}
+          />
+        </div>
+
+        {/* Bill To / Details (read-only view) */}
         <div className="card mb-8">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-lg font-bold text-teal-900">Invoice Details</h2>
-            <InvoiceDetailsEditor
-              invoiceId={invoice.id}
-              initial={{
-                userId: invoice.userId ?? "",
-                companyId: invoice.companyId ?? "",
-                description: invoice.description ?? "",
-                dueDate: invoice.dueDate.toISOString().slice(0, 10),
-                discount: String(toNumber(invoice.discount)),
-                currency: invoice.currency,
-              }}
-              clients={clients}
-              companies={companies}
-            />
           </div>
 
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
@@ -252,61 +304,79 @@ export default async function AdminInvoiceDetailPage({
           </dl>
         </div>
 
-        {/* Status */}
-        <div className="card mb-8">
-          <h2 className="text-lg font-bold text-teal-900 mb-4">Invoice Status</h2>
-          <InvoiceStatusUpdater
-            invoiceId={invoice.id}
-            currentStatus={invoice.status as InvoiceStatus}
-          />
+        {/* Manual send — invoices are NEVER emailed automatically. This
+            button is the only way an invoice email goes out, and it fires
+            only when Dr. CBJ explicitly confirms the send action. */}
+        {invoice.status === "DRAFT" && (
+          <div className="card mb-8 border-2 border-dashed border-teal-300">
+            <h2 className="text-lg font-bold text-teal-900 mb-2">
+              Send Invoice
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              This invoice is a draft. Sending is always manual — use the
+              button below to email it to{" "}
+              {isCorporate && invoice.company
+                ? `${invoice.company.companyName} (${invoice.company.contactEmail || "no billing email set"})`
+                : invoice.user?.email || "the client"}{" "}
+              now.
+            </p>
+            <SendInvoiceButton
+              invoiceId={invoice.id}
+              recipientLabel={
+                isCorporate && invoice.company
+                  ? `${invoice.company.companyName}${invoice.company.contactEmail ? ` (${invoice.company.contactEmail})` : ""}`
+                  : invoice.user?.email || "the client"
+              }
+            />
+          </div>
+        )}
 
-          {/* Manual send — invoices are NEVER emailed automatically. This
-              button is the only way an invoice email goes out, and it fires
-              only when Dr. CBJ explicitly confirms the send action. */}
-          {invoice.status === "DRAFT" && (
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <p className="text-sm text-gray-600 mb-3">
-                This invoice is a draft. Sending is always manual — use the
-                button below to email it to{" "}
-                {isCorporate && invoice.company
-                  ? `${invoice.company.companyName} (${invoice.company.contactEmail || "no billing email set"})`
-                  : invoice.user?.email || "the client"}{" "}
-                now.
-              </p>
-              <SendInvoiceButton
-                invoiceId={invoice.id}
-                recipientLabel={
-                  isCorporate && invoice.company
-                    ? `${invoice.company.companyName}${invoice.company.contactEmail ? ` (${invoice.company.contactEmail})` : ""}`
-                    : invoice.user?.email || "the client"
-                }
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Line Items */}
-        <div className="card mb-8">
+        {/* Line Items (read-only view — edit via “Edit Invoice” above) */}
+        <div className="card mb-8 overflow-x-auto">
           <h2 className="text-lg font-bold text-teal-900 mb-4">
             Line Items ({invoice.items.length})
           </h2>
-          <InvoiceItemsEditor
-            invoiceId={invoice.id}
-            employees={companyEmployees.map((e) => ({ id: e.id, name: e.name }))}
-            items={invoice.items.map((item) => ({
-              id: item.id,
-              description: item.description,
-              quantity: item.quantity,
-              unitPrice: toNumber(item.unitPrice),
-              amount: toNumber(item.amount),
-              employeeId: item.employeeId,
-              sessionDate: item.sessionDate
-                ? item.sessionDate.toISOString()
-                : null,
-              serviceType: item.serviceType,
-              note: item.note,
-            }))}
-          />
+
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 text-left text-gray-500">
+                {isCorporate && <th className="py-2 pr-4">Employee</th>}
+                <th className="py-2 pr-4">Description / Service</th>
+                <th className="py-2 pr-4">Session Date</th>
+                <th className="py-2 pr-4">Qty</th>
+                <th className="py-2 pr-4">Rate</th>
+                <th className="py-2 pr-4">Amount</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {invoice.items.map((item) => (
+                <tr key={item.id} className="border-b border-gray-100">
+                  {isCorporate && (
+                    <td className="py-3 pr-4 whitespace-nowrap">
+                      {item.employee?.name ?? "—"}
+                    </td>
+                  )}
+                  <td className="py-3 pr-4">
+                    {item.description}
+                    {item.note && (
+                      <span className="block text-xs text-gray-500">{item.note}</span>
+                    )}
+                  </td>
+                  <td className="py-3 pr-4 whitespace-nowrap">
+                    {item.sessionDate
+                      ? item.sessionDate.toLocaleDateString()
+                      : "—"}
+                  </td>
+                  <td className="py-3 pr-4">{item.quantity}</td>
+                  <td className="py-3 pr-4">${toNumber(item.unitPrice).toFixed(2)}</td>
+                  <td className="py-3 pr-4 font-semibold text-teal-900">
+                    ${toNumber(item.amount).toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         {/* Payments */}
