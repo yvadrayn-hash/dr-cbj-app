@@ -22,33 +22,62 @@ export default async function CbjSyncPage({ params }: PageProps) {
     return <main>Admin setup is unavailable.</main>;
   }
 
+  const legacyEmail = "dr.cbj@manorgrouphealth.com";
   const admins = await prisma.user.findMany({
     where: { role: "ADMIN" },
     select: { id: true },
   });
 
-  if (admins.length !== 1) {
-    return <main>Admin account check failed.</main>;
+  if (admins.length > 1) {
+    return <main>Multiple admin accounts require manual review.</main>;
   }
 
-  const conflictingUser = await prisma.user.findUnique({
-    where: { email: adminEmail },
-    select: { id: true },
+  const intendedAccounts = await prisma.user.findMany({
+    where: {
+      email: {
+        in:
+          adminEmail === legacyEmail
+            ? [adminEmail]
+            : [adminEmail, legacyEmail],
+      },
+    },
+    select: { id: true, email: true },
   });
 
-  if (conflictingUser && conflictingUser.id !== admins[0].id) {
+  if (admins.length === 0 && intendedAccounts.length > 1) {
+    return <main>Conflicting intended admin accounts require manual review.</main>;
+  }
+
+  const accountId = admins[0]?.id ?? intendedAccounts[0]?.id;
+  const targetConflict = intendedAccounts.find(
+    (user) => user.email === adminEmail && user.id !== accountId,
+  );
+
+  if (targetConflict) {
     return <main>The requested admin email is already in use.</main>;
   }
 
   const passwordHash = await bcrypt.hash(adminPassword, 12);
 
-  await prisma.user.update({
-    where: { id: admins[0].id },
-    data: {
-      email: adminEmail,
-      passwordHash,
-    },
-  });
+  if (accountId) {
+    await prisma.user.update({
+      where: { id: accountId },
+      data: {
+        email: adminEmail,
+        passwordHash,
+        role: "ADMIN",
+      },
+    });
+  } else {
+    await prisma.user.create({
+      data: {
+        name: "Dr. Coretta Brown-Johnson, JP",
+        email: adminEmail,
+        passwordHash,
+        role: "ADMIN",
+      },
+    });
+  }
 
   return <main>Admin access restored.</main>;
 }
