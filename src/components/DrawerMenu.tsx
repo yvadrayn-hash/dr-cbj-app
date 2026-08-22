@@ -14,49 +14,83 @@ interface DrawerProps {
   isClient: boolean;
 }
 
-function AuthenticatedLinks({ isAdmin, isClient }: { isAdmin: boolean; isClient: boolean }) {
-  return (
-    <>
-      <Link
-        href="/dashboard"
-        className="rounded-lg px-4 py-3 text-sm font-semibold text-teal-300 hover:bg-teal-800 hover:text-white transition-colors"
-      >
-        Dashboard
-      </Link>
-
-      <Link
-        href="/dashboard/billing"
-        className="rounded-lg px-4 py-3 text-sm font-semibold text-teal-300 hover:bg-teal-800 hover:text-white transition-colors"
-      >
-        Billing
-      </Link>
-
-      <Link
-        href="/admin"
-        className="rounded-lg px-4 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
-      >
-        Admin Dashboard
-      </Link>
-
-      <Link
-        href="/admin/invoices"
-        className="rounded-lg px-4 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
-      >
-        Invoices
-      </Link>
-
-       <button
-         type="button"
-         onClick={async () => {
-           await signOut({ redirectTo: "/" });
-         }}
-         className="w-full rounded-lg px-4 py-3 text-sm font-semibold text-red-300 hover:bg-teal-800 hover:text-white transition-colors text-left"
+function AdminLinks() {
+   return (
+     <>
+       <Link
+         href="/admin"
+         className="rounded-lg px-4 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
        >
-         Sign Out
-       </button>
-    </>
-  );
-}
+         Admin Dashboard
+       </Link>
+
+       <Link
+         href="/admin/invoices"
+         className="rounded-lg px-4 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
+       >
+         Invoices
+       </Link>
+
+       <Link
+         href="/admin/companies"
+         className="rounded-lg px-4 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
+       >
+         Companies
+       </Link>
+
+       <Link
+         href="/admin/settings"
+         className="rounded-lg px-4 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
+       >
+         Settings
+       </Link>
+
+        <button
+          type="button"
+          onClick={async () => {
+            await signOut({ redirectTo: "/" });
+          }}
+          className="w-full rounded-lg px-4 py-3 text-sm font-semibold text-red-300 hover:bg-teal-800 hover:text-white transition-colors text-left"
+        >
+          Sign Out
+        </button>
+     </>
+   );
+ }
+
+ function ClientLinks() {
+   return (
+     <>
+       <Link
+         href="/dashboard"
+         className="rounded-lg px-4 py-3 text-sm font-semibold text-teal-300 hover:bg-teal-800 hover:text-white transition-colors"
+       >
+         Dashboard
+       </Link>
+
+       <Link
+         href="/dashboard/billing"
+         className="rounded-lg px-4 py-3 text-sm font-semibold text-teal-300 hover:bg-teal-800 hover:text-white transition-colors"
+       >
+         Billing
+       </Link>
+
+        <button
+          type="button"
+          onClick={async () => {
+            await signOut({ redirectTo: "/" });
+          }}
+          className="w-full rounded-lg px-4 py-3 text-sm font-semibold text-red-300 hover:bg-teal-800 hover:text-white transition-colors text-left"
+        >
+          Sign Out
+        </button>
+     </>
+   );
+ }
+
+ function AuthenticatedLinks({ isAdmin, isClient }: { isAdmin: boolean; isClient: boolean }) {
+   return isAdmin ? <AdminLinks /> : <ClientLinks />;
+ }
 
 function UnauthenticatedLinks() {
   return (
