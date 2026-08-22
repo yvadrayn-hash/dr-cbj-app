@@ -32,10 +32,15 @@ export default function MusicPlayer() {
   const [position, setPosition] = useState({ left: "auto", right: "auto", bottom: "auto" });
   // Store raw pixel values for calculations
   const positionRef = useRef({ left: 16, right: 20, bottom: 20 });
+  // Refs for tracking actual rendered dimensions
+  // We track the expanded player div specifically since it's wider
+  const playerRef = useRef<HTMLDivElement | null>(null);
+  const playerDimensionsRef = useRef({ width: 0, height: 0 });
   const dragStartRef = useRef({ x: 0, y: 0, left: 0, bottom: 0, pointerId: -1 });
   // Threshold in pixels to distinguish tap from drag
   const DRAG_THRESHOLD = 8;
   const dragDistanceRef = useRef(0);
+  const isExpandedRef = useRef(false);
 
   // Load saved position on mount (desktop: right, mobile: left)
   useEffect(() => {
@@ -51,20 +56,34 @@ export default function MusicPlayer() {
         if (pos.bottom !== "auto") {
           positionRef.current.bottom = parseFloat(pos.bottom);
         }
+        // Store dimensions from saved position if available
+        if (pos.left !== "auto" && pos.right === "auto") {
+          // Left positioning was used - expand player to measure
+          setTimeout(() => {
+            if (playerRef.current) {
+              const rect = playerRef.current.getBoundingClientRect();
+              playerDimensionsRef.current = { width: rect.width, height: rect.height };
+            }
+          }, 0);
+        }
       } catch {
         // Invalid position data, use defaults
       }
-    } else {
-      // Set initial defaults
-      if (window.innerWidth < 640) {
-        positionRef.current.left = 16;
-        positionRef.current.bottom = 16;
-      } else {
-        positionRef.current.right = 20;
-        positionRef.current.bottom = 20;
-      }
     }
+    // Set initial defaults
   }, []);
+
+  // Measure player dimensions when toggling minimized state or after mount
+  useEffect(() => {
+    if (!playerRef.current) return;
+
+    const rect = playerRef.current.getBoundingClientRect();
+    playerDimensionsRef.current = { width: rect.width, height: rect.height };
+    isExpandedRef.current = !minimized;
+
+    // Re-clamp position based on new dimensions
+    reClampPosition(rect.width, rect.height);
+  }, [minimized]);
 
   // Save position on change (debounced slightly via effect dependency)
   useEffect(() => {
@@ -218,15 +237,47 @@ export default function MusicPlayer() {
     setTrackIndex((current) => (current + 1) % tracks.length);
   }
 
+  // Re-clamp position when dimensions change to prevent going off-screen
+  const reClampPosition = useCallback((playerWidth: number, playerHeight: number) => {
+    if (position.left === "auto" && position.right === "auto") return;
+
+    const padding = 16;
+    const containerWidth = window.innerWidth;
+    const containerHeight = window.innerHeight;
+
+    // Safe clamping - bounds should never be invalid
+    const safeX = position.left !== "auto" 
+      ? Math.max(padding, Math.min(parseFloat(position.left), containerWidth - playerWidth - padding))
+      : parseFloat(position.right);
+
+    const safeY = position.bottom !== "auto"
+      ? Math.max(padding, Math.min(parseFloat(position.bottom), containerHeight - playerHeight - padding))
+      : 0;
+
+    if (position.left !== "auto") {
+      setPosition(prev => ({
+        ...prev,
+        left: `${Math.max(padding, Math.min(parseFloat(prev.left), containerWidth - playerWidth - padding))}px`,
+      }));
+    }
+    if (position.bottom !== "auto") {
+      setPosition(prev => ({
+        ...prev,
+        bottom: `${Math.max(padding, Math.min(parseFloat(prev.bottom), containerHeight - playerHeight - padding))}px`,
+      }));
+    }
+  }, [position.left, position.bottom]);
+
   function toggleMinimized() {
     setMinimized((current) => {
       const next = !current;
       localStorage.setItem(MINIMIZED_KEY, String(next));
       return next;
     });
+    // Note: useEffect will re-clamp after render
   }
 
-  // Drag handling with pointer events
+  // Drag handling with pointer events - uses actual player dimensions
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     // Only drag with left mouse button or touch
     if (e.button !== 0 && e.pointerType !== "touch") return;
@@ -238,10 +289,12 @@ export default function MusicPlayer() {
     // Store pointer ID
     dragStartRef.current.pointerId = e.pointerId;
 
+    // Get actual rendered dimensions
+    const rect = playerRef.current?.getBoundingClientRect() || target.getBoundingClientRect();
+    const playerWidth = rect.width;
+    const playerHeight = rect.height;
+
     // Store initial pointer position and current element position
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    
-    // Determine if we're using left or right positioning
     const currentLeft = positionRef.current.left;
     const currentBottom = positionRef.current.bottom;
 
@@ -252,6 +305,9 @@ export default function MusicPlayer() {
       bottom: currentBottom,
       pointerId: e.pointerId,
     };
+
+    // Store actual dimensions for this drag session
+    playerDimensionsRef.current = { width: playerWidth, height: playerHeight };
 
     // Reset drag distance counter - only count as drag after threshold
     dragDistanceRef.current = 0;
@@ -277,20 +333,25 @@ export default function MusicPlayer() {
 
     if (isDragging) {
       const newLeft = dragStartRef.current.left + dx;
-      // When using bottom positioning, Y delta is inverted:
-      // Dragging UP (dy < 0) means player should move UP (larger bottom value)
-      // Dragging DOWN (dy > 0) means player should move DOWN (smaller bottom value)
-      const newBottom = dragStartRef.current.bottom - dy;
+      const newBottom = dragStartRef.current.bottom - dy; // Inverted Y for bottom positioning
 
-      // Constrain to viewport with padding
+      // Get actual player dimensions
+      const playerWidth = playerDimensionsRef.current.width || playerRef.current?.getBoundingClientRect().width || 330;
+      const playerHeight = playerDimensionsRef.current.height || playerRef.current?.getBoundingClientRect().height || 60;
+
+      // Constrain to viewport with safe clamping
       const padding = 16;
       const containerWidth = window.innerWidth;
       const containerHeight = window.innerHeight;
-      const playerWidth = 100; // Approximate player width in px
-      const playerHeight = 60; // Approximate player height in px
 
-      const constrainedLeft = Math.max(padding, Math.min(newLeft, containerWidth - playerWidth - padding));
-      const constrainedBottom = Math.max(padding, Math.min(newBottom, containerHeight - playerHeight - padding));
+      // Safe bounds - never become invalid
+      const minX = padding;
+      const maxX = Math.max(padding, containerWidth - playerWidth - padding);
+      const minY = padding;
+      const maxY = Math.max(padding, containerHeight - playerHeight - padding);
+
+      const constrainedLeft = Math.min(Math.max(newLeft, minX), maxX);
+      const constrainedBottom = Math.min(Math.max(newBottom, minY), maxY);
 
       setPosition({
         left: `${constrainedLeft}px`,
@@ -339,6 +400,10 @@ export default function MusicPlayer() {
   useEffect(() => {
     if (!isDragging) return;
 
+    // Get actual player dimensions
+    const playerWidth = playerDimensionsRef.current.width || playerRef.current?.getBoundingClientRect().width || 330;
+    const playerHeight = playerDimensionsRef.current.height || playerRef.current?.getBoundingClientRect().height || 60;
+
     // Window-level handlers to catch movements even outside the element
     function onWindowPointerMove(e: PointerEvent) {
       if (dragStartRef.current.pointerId !== e.pointerId) return;
@@ -349,15 +414,19 @@ export default function MusicPlayer() {
       const newLeft = dragStartRef.current.left + dx;
       const newBottom = dragStartRef.current.bottom - dy;
 
-      // Constrain to viewport
+      // Constrain to viewport with safe bounds
       const padding = 16;
       const containerWidth = window.innerWidth;
       const containerHeight = window.innerHeight;
-      const playerWidth = 100;
-      const playerHeight = 60;
 
-      const constrainedLeft = Math.max(padding, Math.min(newLeft, containerWidth - playerWidth - padding));
-      const constrainedBottom = Math.max(padding, Math.min(newBottom, containerHeight - playerHeight - padding));
+      // Safe clamping - bounds should never be invalid
+      const minX = padding;
+      const maxX = Math.max(padding, containerWidth - playerWidth - padding);
+      const minY = padding;
+      const maxY = Math.max(padding, containerHeight - playerHeight - padding);
+
+      const constrainedLeft = Math.min(Math.max(newLeft, minX), maxX);
+      const constrainedBottom = Math.min(Math.max(newBottom, minY), maxY);
 
       setPosition({
         left: `${constrainedLeft}px`,
@@ -369,7 +438,7 @@ export default function MusicPlayer() {
     function onWindowPointerUp(e: PointerEvent) {
       if (dragStartRef.current.pointerId !== e.pointerId) return;
 
-      const target = document.getElementById("music-player-handle");
+      const target = playerRef.current;
       if (target) target.releasePointerCapture(e.pointerId);
 
       dragStartRef.current.pointerId = -1;
@@ -384,7 +453,7 @@ export default function MusicPlayer() {
       window.removeEventListener("pointermove", onWindowPointerMove);
       window.removeEventListener("pointerup", onWindowPointerUp);
     };
-  }, [isDragging]);
+  }, [isDragging, playerRef, playerDimensionsRef]);
 
   // Synce positionRef with position state when not dragging
   useEffect(() => {
@@ -445,11 +514,17 @@ export default function MusicPlayer() {
         </button>
       ) : (
         <div 
+          ref={playerRef}
           className="pointer-events-auto w-full rounded-3xl border border-teal-100/80 bg-white/95 px-3 py-3 shadow-2xl backdrop-blur-xl sm:w-auto sm:min-w-[330px] sm:px-4 cursor-grab active:cursor-grabbing"
           style={{ touchAction: "none" }}
           onPointerDown={handlePointerDown}
         >
-          <div className="mb-3 flex items-start justify-between gap-4">
+          {/* Drag handle - only this section drags the player */}
+          <div 
+            className="mb-3 flex items-start justify-between gap-4 cursor-grab active:cursor-grabbing"
+            style={{ touchAction: "none" }}
+            onPointerDown={handlePointerDown}
+          >
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gold-600">
                 Now Playing
