@@ -116,11 +116,11 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="py-6 sm:py-10 flex flex-col h-[calc(100vh-200px)] overflow-hidden">
-      <div className="mx-auto max-w-4xl px-3 sm:px-6 lg:px-8 w-full flex flex-col h-full max-h-full min-h-0">
-        <div className="mb-3 text-center sm:mb-10 shrink-0 flex-shrink-0">
-          <h1 className="text-2xl sm:text-3xl font-semibold text-teal-900">AI Wellness Assistant</h1>
-          <p className="text-gray-600 min-h-0">
+    <div className="py-8 sm:py-12 flex flex-col items-center">
+      <div className="mx-auto max-w-4xl px-3 sm:px-6 lg:px-8 w-full flex flex-col gap-6">
+        <div className="text-center">
+          <h1 className="text-xl sm:text-2xl font-semibold text-teal-900">AI Wellness Assistant</h1>
+          <p className="text-gray-600 mt-2">
             A supportive space for general mental wellness discussions.
             <br className="hidden sm:block" />
             <span className="text-sm text-gray-500">
@@ -130,7 +130,7 @@ export default function ChatPage() {
           </p>
         </div>
 
-        <div className="overflow-hidden rounded-2xl bg-white shadow-xl sm:rounded-3xl flex flex-col shrink-0 flex-1 min-h-0">
+        <div className="overflow-hidden rounded-2xl bg-white shadow-xl sm:rounded-3xl flex flex-col w-full" style={{ minHeight: '420px', maxHeight: '65vh' }}>
           <div className="flex items-center gap-3 bg-teal-900 p-3 text-white sm:p-4 shrink-0">
             <Image
               src="/assets/avatar.png"
