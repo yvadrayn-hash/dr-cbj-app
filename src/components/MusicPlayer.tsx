@@ -49,14 +49,17 @@ export default function MusicPlayer() {
     let defaultLeft = 16;
     let defaultTop = 16;
 
+    const viewportWidth = window.visualViewport?.width || window.innerWidth;
+    const viewportHeight = window.visualViewport?.height || window.innerHeight;
+
     // Desktop default (bottom-right)
-    if (window.innerWidth >= 640) {
-      defaultLeft = window.innerWidth - 100 - 20;
-      defaultTop = window.innerHeight - 60 - 20;
+    if (viewportWidth >= 640) {
+      defaultLeft = viewportWidth - 100 - 20;
+      defaultTop = viewportHeight - 60 - 20;
     } else {
       // Mobile default (bottom-left)
       defaultLeft = 16;
-      defaultTop = window.innerHeight - 60 - 20;
+      defaultTop = viewportHeight - 60 - 20;
     }
 
     if (savedX !== null && savedY !== null) {
@@ -234,9 +237,12 @@ export default function MusicPlayer() {
     // Only left click or touch
     if (e.button !== 0 && e.pointerType !== "touch") return;
 
-    // Prevent default to avoid text selection on touch
-    e.preventDefault();
+    // Keep taps/clicks working; drag surfaces disable touch scrolling via touchAction.
     e.stopPropagation();
+
+    // Expanded controls must remain clickable and must not start a drag.
+    const origin = e.target as HTMLElement;
+    if (!minimized && origin.closest("button, input")) return;
 
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
@@ -254,7 +260,7 @@ export default function MusicPlayer() {
     };
 
     didDragRef.current = false;
-  }, [position.left, position.top, getPlayerDimensions]);
+  }, [position.left, position.top, getPlayerDimensions, minimized]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
@@ -336,7 +342,8 @@ export default function MusicPlayer() {
             }
             toggleMinimized();
           }}
-          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full border border-teal-100 bg-white/95 text-2xl shadow-2xl backdrop-blur-xl transition hover:scale-105 hover:bg-teal-50 cursor-grab active:cursor-grabbing touch-action-none"
+          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full border border-teal-100 bg-white/95 text-2xl shadow-2xl backdrop-blur-xl transition hover:scale-105 hover:bg-teal-50 cursor-grab active:cursor-grabbing"
+          style={{ touchAction: "none", userSelect: "none", WebkitUserSelect: "none" }}
           aria-label={didDragRef.current ? "Drag music player" : "Open music player"}
           title={`Now Playing: ${tracks[trackIndex].title}`}
         >
@@ -346,11 +353,12 @@ export default function MusicPlayer() {
       ) : (
         <div
           ref={playerRef}
-          className="pointer-events-auto w-full rounded-3xl border border-teal-100/80 bg-white/95 px-3 py-3 shadow-2xl backdrop-blur-xl sm:w-auto sm:min-w-[330px] sm:px-4"
+          className="pointer-events-auto w-[260px] max-w-[calc(100vw-32px)] rounded-3xl border border-teal-100/80 bg-white/95 px-3 py-3 shadow-2xl backdrop-blur-xl sm:w-auto sm:min-w-[330px] sm:px-4"
         >
           {/* Drag handle - only this section initiates drag */}
           <div
-            className="mb-3 flex items-start justify-between gap-4 cursor-grab active:cursor-grabbing touch-action-none"
+            className="mb-3 flex items-start justify-between gap-4 cursor-grab active:cursor-grabbing"
+            style={{ touchAction: "none", userSelect: "none", WebkitUserSelect: "none" }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
