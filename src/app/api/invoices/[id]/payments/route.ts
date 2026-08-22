@@ -14,7 +14,7 @@ const submitPaymentSchema = z.object({
     .number()
     .positive("Amount must be greater than 0")
     .max(MAX_PAYMENT_AMOUNT, "Amount is too large"),
-  paymentMethod: z.enum(["MANUAL", "CARD", "BANK_TRANSFER", "CASH"]),
+  paymentMethod: z.enum(["CASH", "BANK_TRANSFER", "CARD", "PAYPAL", "PAYONEER", "OTHER"]),
   reference: z.string().max(120).optional(),
 });
 

@@ -16,9 +16,21 @@ export default function PaymentForm({
   const [error, setError] = useState<string | null>(null);
 
   const [amount, setAmount] = useState(remaining > 0 ? remaining.toFixed(2) : "");
-  const [paymentMethod, setPaymentMethod] = useState("MANUAL");
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "BANK_TRANSFER" | "CARD" | "PAYPAL" | "PAYONEER" | "OTHER">("CASH");
   const [status, setStatus] = useState("COMPLETED");
   const [transactionReference, setTransactionReference] = useState("");
+  const [methodNote, setMethodNote] = useState("");
+
+  const paymentMethodOptions = [
+    { value: "CASH", label: "Cash" },
+    { value: "BANK_TRANSFER", label: "Bank Transfer" },
+    { value: "CARD", label: "Card" },
+    { value: "PAYPAL", label: "PayPal" },
+    { value: "PAYONEER", label: "Payoneer" },
+    { value: "OTHER", label: "Other" },
+  ];
+
+  const otherPaymentMethods = ["PAYPAL", "PAYONEER", "OTHER"];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +52,7 @@ export default function PaymentForm({
           paymentMethod,
           status,
           transactionReference: transactionReference.trim() || undefined,
+          methodNote: methodNote.trim() || undefined,
         }),
       });
 
@@ -50,6 +63,7 @@ export default function PaymentForm({
 
       setOpen(false);
       setTransactionReference("");
+      setMethodNote("");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -100,19 +114,35 @@ export default function PaymentForm({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Method
+            Payment Method *
           </label>
           <select
             value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
+            onChange={(e) => setPaymentMethod(e.target.value as any)}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
           >
-            <option value="MANUAL">Manual</option>
-            <option value="CARD">Card</option>
-            <option value="BANK_TRANSFER">Bank Transfer</option>
-            <option value="CASH">Cash</option>
+            {paymentMethodOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </div>
+
+        {otherPaymentMethods.includes(paymentMethod) && (
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Method Note (optional)
+            </label>
+            <input
+              type="text"
+              value={methodNote}
+              onChange={(e) => setMethodNote(e.target.value)}
+              placeholder={`e.g. ${paymentMethod === "PAYPAL" ? "PayPal invoice #12345" : paymentMethod === "PAYONEER" ? "Payoneer reference" : "Additional details"}`}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
+            />
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">

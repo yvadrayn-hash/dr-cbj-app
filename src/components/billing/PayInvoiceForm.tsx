@@ -22,9 +22,9 @@ export default function PayInvoiceForm({
   balanceDue: number;
 }) {
   const router = useRouter();
-  const [amount, setAmount] = useState(balanceDue.toFixed(2));
-  const [paymentMethod, setPaymentMethod] = useState("BANK_TRANSFER");
-  const [reference, setReference] = useState("");
+   const [amount, setAmount] = useState(balanceDue.toFixed(2));
+   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "BANK_TRANSFER" | "CARD" | "PAYPAL" | "PAYONEER" | "OTHER">("CASH");
+   const [reference, setReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -112,19 +112,21 @@ export default function PayInvoiceForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Method
-          </label>
-          <select
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
-          >
-            <option value="BANK_TRANSFER">Bank Transfer</option>
-            <option value="CARD">Card</option>
-            <option value="CASH">Cash</option>
-            <option value="MANUAL">Other</option>
-          </select>
+           <label className="block text-sm font-medium text-gray-700 mb-1">
+             Payment Method *
+           </label>
+           <select
+             value={paymentMethod}
+             onChange={(e) => setPaymentMethod(e.target.value as any)}
+             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
+           >
+             <option value="CASH">Cash</option>
+             <option value="BANK_TRANSFER">Bank Transfer</option>
+             <option value="CARD">Card</option>
+             <option value="PAYPAL">PayPal</option>
+             <option value="PAYONEER">Payoneer</option>
+             <option value="OTHER">Other</option>
+           </select>
         </div>
 
         <div>

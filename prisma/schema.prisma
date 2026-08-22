@@ -164,6 +164,15 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  PAYPAL
+  PAYONEER
+  OTHER
+}
+
 // ============ INTAKE FORMS ============
 
 model IntakeForm {
@@ -412,7 +421,7 @@ model Payment {
   user              User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   amount            Decimal
   currency          String        @default("USD")
-  paymentMethod     String        @default("MANUAL")
+  paymentMethod     PaymentMethod @default(CASH)
   transactionReference String?
   status            PaymentStatus @default(PENDING)
   paidAt            DateTime?

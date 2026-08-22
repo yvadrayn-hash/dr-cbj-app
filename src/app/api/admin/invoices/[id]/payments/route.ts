@@ -4,16 +4,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { updateInvoicePaymentStatus, getAmountPaid } from "@/lib/invoice-helpers";
 import { sendPaymentRecordedEmail } from "@/lib/email";
-import { formatMoney, generateTransactionReference } from "@/lib/invoices";
+import { formatMoney, generateTransactionReference, paymentMethodLabels } from "@/lib/invoices";
 
 const createPaymentSchema = z.object({
   amount: z.number().positive("Amount must be greater than 0"),
-  paymentMethod: z
-    .enum(["MANUAL", "CARD", "BANK_TRANSFER", "CASH"])
-    .default("MANUAL"),
+  paymentMethod: z.enum(["CASH", "BANK_TRANSFER", "CARD", "PAYPAL", "PAYONEER", "OTHER"]),
   status: z.enum(["PENDING", "COMPLETED", "FAILED", "REFUNDED"]).default("COMPLETED"),
   transactionReference: z.string().optional(),
   paidAt: z.string().optional(),
+  methodNote: z.string().optional(),
 });
 
 export async function GET(

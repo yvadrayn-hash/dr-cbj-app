@@ -5,6 +5,7 @@ import {
   formatMoney,
   invoiceStatusColor,
   paymentStatusColor,
+  paymentMethodLabels,
 } from "@/lib/invoices";
 import type { InvoiceStatus, PaymentStatus } from "@/lib/invoices";
 import { redirect } from "next/navigation";
@@ -436,7 +437,7 @@ export default async function AdminInvoiceDetailPage({
                       {formatMoney(payment.amount)}
                     </td>
                     <td className="py-3 pr-4 capitalize">
-                      {payment.paymentMethod.replaceAll("_", " ").toLowerCase()}
+                      {paymentMethodLabels[payment.paymentMethod as keyof typeof paymentMethodLabels] || payment.paymentMethod.replaceAll("_", " ").toLowerCase()}
                     </td>
                     <td className="py-3 pr-4 text-xs text-gray-500">
                       {payment.transactionReference || "—"}

@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { toNumber, formatMoney, invoiceStatusColor, invoiceStatusLabels } from "@/lib/invoices";
+import { toNumber, formatMoney, invoiceStatusColor, invoiceStatusLabels, paymentMethodLabels } from "@/lib/invoices";
 import PayInvoiceForm from "@/components/billing/PayInvoiceForm";
 
 export const dynamic = "force-dynamic";
@@ -289,7 +289,7 @@ export default async function ClientInvoiceDetailPage({
                       {formatMoney(payment.amount)}
                     </td>
                     <td className="py-3 pr-4 capitalize">
-                      {payment.paymentMethod.replaceAll("_", " ").toLowerCase()}
+                      {paymentMethodLabels[payment.paymentMethod as keyof typeof paymentMethodLabels] || payment.paymentMethod.replaceAll("_", " ").toLowerCase()}
                     </td>
                     <td className="py-3 pr-4 text-xs text-gray-500">
                       {payment.transactionReference || "—"}

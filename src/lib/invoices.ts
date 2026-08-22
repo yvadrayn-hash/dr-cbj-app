@@ -11,7 +11,7 @@ export type InvoiceStatus =
 
 export type PaymentStatus = "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
 
-export type PaymentMethod = "MANUAL" | "CARD" | "BANK_TRANSFER" | "CASH";
+export type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CARD" | "PAYPAL" | "PAYONEER" | "OTHER";
 
 /**
  * Coerce a Decimal / number / string to a JS number.
@@ -126,10 +126,12 @@ export const paymentStatusLabels: Record<PaymentStatus, string> = {
 
 /** Payment method labels */
 export const paymentMethodLabels: Record<PaymentMethod, string> = {
-  MANUAL: "Manual",
-  CARD: "Card",
-  BANK_TRANSFER: "Bank Transfer",
   CASH: "Cash",
+  BANK_TRANSFER: "Bank Transfer",
+  CARD: "Card",
+  PAYPAL: "PayPal",
+  PAYONEER: "Payoneer",
+  OTHER: "Other",
 };
 
 /** Tailwind badge classes for invoice statuses */
