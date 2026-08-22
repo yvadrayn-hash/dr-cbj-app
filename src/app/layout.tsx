@@ -5,6 +5,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import MusicPlayer from "@/components/MusicPlayer";
 import { siteConfig } from "@/lib/site";
+import { auth } from "@/auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,18 +34,22 @@ export const metadata: Metadata = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
+  const isAuthenticated = !!session?.user;
+  const isAdmin = session?.user?.role === "ADMIN";
+
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col pb-20 sm:pb-0">
-        <Header />
+        <Header isAuthenticated={isAuthenticated} isAdmin={isAdmin} />
         <main className="flex-1">{children}</main>
         <Footer />
         <MusicPlayer />

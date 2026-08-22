@@ -5,6 +5,70 @@ import { useState } from "react";
 import { signOut } from "next-auth/react";
 import DrawerMenu from "./DrawerMenu";
 
+interface HeaderProps {
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+}
+
+export default function Header({ isAuthenticated, isAdmin }: HeaderProps) {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  return (
+    <>
+      <header className="bg-teal-900 text-white shadow-lg sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            <Link href="/" className="flex items-center gap-3 min-w-0">
+              <img
+                src="/assets/Dr. CBJ Logo.png"
+                alt="Dr. CBJ Mental Wellness"
+                className="rounded-full object-contain shrink-0 w-14 h-14"
+              />
+              <div className="hidden sm:block min-w-0">
+                <span className="text-lg font-bold block">
+                  Dr. CBJ Mental Wellness
+                </span>
+                <span className="block text-xs text-teal-200">
+                  ... of Manor Group Health
+                  <span className="text-amber-400 font-semibold">+</span>
+                </span>
+              </div>
+            </Link>
+
+            <DesktopNav
+              isAuthenticated={isAuthenticated}
+              isAdmin={isAdmin}
+            />
+
+            <button
+              id="mobile-menu-toggle"
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden inline-flex items-center justify-center p-2 rounded-md text-teal-100 hover:text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2 focus:ring-offset-teal-900 transition-colors"
+              aria-label="Open navigation menu"
+              aria-expanded={isMobileMenuOpen}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" x2="20" y1="12" y2="12" />
+                <line x1="4" x2="20" y1="6" y2="6" />
+                <line x1="4" x2="20" y1="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <DrawerMenu
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+        isAuthenticated={isAuthenticated}
+        isAdmin={isAdmin}
+        isClient={!isAdmin}
+      />
+    </>
+  );
+}
+
 interface NavProps {
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -116,82 +180,5 @@ function DesktopNav({ isAuthenticated, isAdmin }: NavProps) {
         Sign Out
       </button>
     </div>
-  );
-}
-
-export default function Header() {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
-  // Client-side auth check using useSession
-  // This is safe because next-auth/react only includes client bindings
-  // The auth.ts file is NOT imported here - they use the same auth system
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  // Use next-auth/react hooks safely - these don't import auth.ts
-  // import their own client-side session handling
-  if (typeof window !== "undefined") {
-    const { useSession } = require("next-auth/react");
-    const { data: session } = useSession();
-    
-    if (session?.user) {
-      setIsAuthenticated(true);
-      setIsAdmin(session.user.role === "ADMIN");
-    }
-  }
-
-  return (
-    <>
-      <header className="bg-teal-900 text-white shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
-            <Link href="/" className="flex items-center gap-3 min-w-0">
-              <img
-                src="/assets/Dr. CBJ Logo.png"
-                alt="Dr. CBJ Mental Wellness"
-                className="rounded-full object-contain shrink-0 w-14 h-14"
-              />
-              <div className="hidden sm:block min-w-0">
-                <span className="text-lg font-bold block">
-                  Dr. CBJ Mental Wellness
-                </span>
-                <span className="block text-xs text-teal-200">
-                  ... of Manor Group Health
-                  <span className="text-amber-400 font-semibold">+</span>
-                </span>
-              </div>
-            </Link>
-
-            <DesktopNav
-              isAuthenticated={isAuthenticated}
-              isAdmin={isAdmin}
-            />
-
-            <button
-              id="mobile-menu-toggle"
-              type="button"
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="lg:hidden inline-flex items-center justify-center p-2 rounded-md text-teal-100 hover:text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2 focus:ring-offset-teal-900 transition-colors"
-              aria-label="Open navigation menu"
-              aria-expanded={isMobileMenuOpen}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="4" x2="20" y1="12" y2="12" />
-                <line x1="4" x2="20" y1="6" y2="6" />
-                <line x1="4" x2="20" y1="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <DrawerMenu
-        isOpen={isMobileMenuOpen}
-        onClose={() => setIsMobileMenuOpen(false)}
-        isAuthenticated={isAuthenticated}
-        isAdmin={isAdmin}
-        isClient={!isAdmin}
-      />
-    </>
   );
 }
