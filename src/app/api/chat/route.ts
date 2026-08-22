@@ -66,7 +66,7 @@ async function generateQwenResponse(
   console.log("Qwen API key present");
 
   const client = new OpenAI({
-    baseURL: "https://dashscope-us.aliyuncs.com/compatible-mode/v1",
+    baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
     apiKey,
     defaultHeaders: {
       "X-DashScope-User-Agent": "Dr. CBJ Mental Wellness",
