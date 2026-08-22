@@ -83,7 +83,7 @@ async function generateQwenResponse(
 
   try {
     const completion = await client.chat.completions.create({
-      model: "qwen-plus",
+      model: "qwen3-coder-next",
       messages: [
         { role: "system", content: systemPrompt },
         ...normalizedHistory.map((item) => ({
