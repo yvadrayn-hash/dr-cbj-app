@@ -256,7 +256,10 @@ export default function MusicPlayer() {
       const dy = e.clientY - dragStartRef.current.y;
 
       const newLeft = dragStartRef.current.left + dx;
-      const newBottom = dragStartRef.current.bottom + dy;
+      // When using bottom positioning, Y delta is inverted:
+      // Dragging UP (dy < 0) means player should move UP (larger bottom value)
+      // Dragging DOWN (dy > 0) means player should move DOWN (smaller bottom value)
+      const newBottom = dragStartRef.current.bottom - dy;
 
       // Constrain to viewport with padding
       const padding = 16;
