@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { siteConfig } from "@/lib/site";
+import TimeSlotPicker from "@/components/TimeSlotPicker";
+import { toStoredTime } from "@/lib/appointment-times";
 
 const sessionTypes = [
   { value: "INITIAL_CONSULTATION", label: "Initial Consultation (45 min)" },
@@ -41,6 +43,35 @@ export default function BookAppointmentPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Fetch already-booked times (excluding CANCELLED) for the chosen date
+  const [bookedTimes, setBookedTimes] = useState<string[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
+  const loadBookedTimes = useCallback(async (date: string) => {
+    if (!date) return;
+    setLoadingSlots(true);
+    try {
+      const res = await fetch(
+        `/api/appointments?date=${encodeURIComponent(date)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setBookedTimes(
+          (Array.isArray(data) ? data : [])
+            .filter((a: { status?: string }) => a.status !== "CANCELLED")
+            .map((a: { preferredTime?: string }) => a.preferredTime || "")
+            .filter(Boolean)
+        );
+      } else {
+        setBookedTimes([]);
+      }
+    } catch {
+      setBookedTimes([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -50,7 +81,10 @@ export default function BookAppointmentPage() {
       const res = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          preferredTime: toStoredTime(formData.preferredTime),
+        }),
       });
 
       const data = await res.json();
@@ -62,6 +96,7 @@ export default function BookAppointmentPage() {
       }
 
       setSuccess(true);
+      setBookedTimes([]);
       setFormData({
         fullName: "",
         email: "",
@@ -100,10 +135,7 @@ export default function BookAppointmentPage() {
               </a>
               .
             </p>
-            <button
-              onClick={() => setSuccess(false)}
-              className="btn-primary"
-            >
+            <button onClick={() => setSuccess(false)} className="btn-primary">
               Book Another Appointment
             </button>
           </div>
@@ -192,25 +224,30 @@ export default function BookAppointmentPage() {
                   name="preferredDate"
                   required
                   value={formData.preferredDate}
-                  onChange={handleChange}
+                  onChange={(e) => {
+                    handleChange(e);
+                    loadBookedTimes(e.target.value);
+                  }}
                   className="input-field"
                   min={new Date().toISOString().split("T")[0]}
                 />
               </div>
 
-              <div>
-                <label htmlFor="preferredTime" className="label-field">
-                  Preferred Time
-                </label>
-                <input
-                  type="time"
-                  id="preferredTime"
-                  name="preferredTime"
-                  required
+              <div className="md:col-span-2">
+                <label className="label-field">Available Times</label>
+                <TimeSlotPicker
+                  date={formData.preferredDate}
                   value={formData.preferredTime}
-                  onChange={handleChange}
-                  className="input-field"
+                  onChange={(label) =>
+                    setFormData((prev) => ({ ...prev, preferredTime: label }))
+                  }
+                  excludeTime={bookedTimes}
                 />
+                {loadingSlots && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Checking availability...
+                  </p>
+                )}
               </div>
             </div>
 
@@ -281,7 +318,7 @@ export default function BookAppointmentPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !formData.preferredTime}
               className="btn-primary w-full disabled:opacity-50"
             >
               {loading ? "Sending request..." : "Request Appointment"}

@@ -201,15 +201,41 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    // Appointment data (incl. reason-for-visit notes) is sensitive —
-    // only admins may list it
+    const { searchParams } = new URL(request.url);
     const session = await auth();
 
+    // Public slot-availability lookup: ?date=YYYY-MM-DD returns ONLY the
+    // booked 24h "HH:MM" times for that date (excluding CANCELLED). No
+    // client names, emails, phones, or notes are ever exposed.
+    const dateParam = searchParams.get("date");
+    if (dateParam) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        return NextResponse.json({ error: "Invalid date" }, { status: 400 });
+      }
+
+      // Interpret the date in local time to match booking logic
+      const [y, m, d] = dateParam.split("-").map(Number);
+      const date = new Date(y, m - 1, d);
+
+      const booked = await prisma.appointment.findMany({
+        where: {
+          preferredDate: date,
+          status: { not: "CANCELLED" },
+        },
+        select: { preferredTime: true },
+      });
+
+      return NextResponse.json(
+        booked.map((a) => a.preferredTime)
+      );
+    }
+
+    // Full appointment data (incl. reason-for-visit notes) is sensitive —
+    // only admins may list it
     if (!session?.user || session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
 
     const where = status ? { status: status as any } : {};
