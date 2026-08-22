@@ -21,6 +21,79 @@ type ChatHistoryItem = {
   content: string;
 };
 
+// Normalize messages to plain text only, removing any toolUse/toolResult blocks
+// that may be present in stored chat history
+function normalizeMessageContent(content: string): string {
+  // Remove toolUse blocks - match content between {"type":"toolUse" and }
+  let normalized = content.replace(
+    /{"type":"toolUse"[^}]*}/g,
+    "[Tool use blocked]"
+  );
+  // Remove toolResult blocks - match content between {"type":"toolResult" and }
+  normalized = normalized.replace(
+    /{"type":"toolResult"[^}]*}/g,
+    "[Tool result blocked]"
+  );
+  // Remove JSON-like toolUse blocks (for nested JSON content)
+  normalized = normalized.replace(
+    /"toolUse"\s*:\s*\{[^}]*(?:\{[^}]*\}[^}]*)*\}/g,
+    ""
+  );
+  // Remove JSON-like toolResult blocks
+  normalized = normalized.replace(
+    /"toolResult"\s*:\s*\{[^}]*(?:\{[^}]*\}[^}]*)*\}/g,
+    ""
+  );
+  // Trim any resulting whitespace
+  return normalized.trim();
+}
+
+async function generateQwenResponse(
+  input: string,
+  history: ChatHistoryItem[]
+): Promise<string | null> {
+  const apiKey = process.env.DASHSCOPE_API_KEY;
+  if (!apiKey) return null;
+
+  const client = new OpenAI({
+    baseURL: "https://dashscope-us.aliyuncs.com/compatible-mode/v1",
+    apiKey,
+    defaultHeaders: {
+      "X-DashScope-User-Agent": "Dr. CBJ Mental Wellness",
+    },
+  });
+
+  // Normalize history to plain text only
+  const normalizedHistory = history.map((item) => ({
+    ...item,
+    content: normalizeMessageContent(item.content),
+  }));
+
+  try {
+    const completion = await client.chat.completions.create({
+      model: "qwen-plus",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...normalizedHistory.map((item) => ({
+          role:
+            item.role === "ASSISTANT"
+              ? ("assistant" as const)
+              : ("user" as const),
+          content: item.content,
+        })),
+        { role: "user", content: input },
+      ],
+      temperature: 0.6,
+      max_tokens: 500,
+    });
+
+    return completion.choices[0]?.message.content?.trim() || null;
+  } catch (error) {
+    console.error("Qwen API error:", error?.toString().replace(apiKey, "[REDACTED]"));
+    return null;
+  }
+}
+
 async function generateOpenRouterResponse(
   input: string,
   history: ChatHistoryItem[]
@@ -36,12 +109,18 @@ async function generateOpenRouterResponse(
     },
   });
 
+  // Normalize history to plain text only
+  const normalizedHistory = history.map((item) => ({
+    ...item,
+    content: normalizeMessageContent(item.content),
+  }));
+
   try {
     const completion = await client.chat.completions.create({
       model: process.env.OPENROUTER_MODEL || "openrouter/auto",
       messages: [
         { role: "system", content: systemPrompt },
-        ...history.map((item) => ({
+        ...normalizedHistory.map((item) => ({
           role:
             item.role === "ASSISTANT"
               ? ("assistant" as const)
@@ -56,7 +135,7 @@ async function generateOpenRouterResponse(
 
     return completion.choices[0]?.message.content?.trim() || null;
   } catch (error) {
-    console.error("OpenRouter error:", error);
+    console.error("OpenRouter error:", error?.toString().replace(apiKey, "[REDACTED]"));
     return null;
   }
 }
@@ -139,6 +218,7 @@ export async function POST(request: Request) {
 
       const history = recentMessages.reverse();
       response =
+        (await generateQwenResponse(message, history)) ||
         (await generateOpenRouterResponse(message, history)) ||
         generateResponse(message, history);
     }
