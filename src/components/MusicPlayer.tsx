@@ -32,7 +32,10 @@ export default function MusicPlayer() {
   const [position, setPosition] = useState({ left: "auto", right: "auto", bottom: "auto" });
   // Store raw pixel values for calculations
   const positionRef = useRef({ left: 16, right: 20, bottom: 20 });
-  const dragStartRef = useRef({ x: 0, y: 0, left: 0, bottom: 0 });
+  const dragStartRef = useRef({ x: 0, y: 0, left: 0, bottom: 0, pointerId: -1 });
+  // Threshold in pixels to distinguish tap from drag
+  const DRAG_THRESHOLD = 8;
+  const dragDistanceRef = useRef(0);
 
   // Load saved position on mount (desktop: right, mobile: left)
   useEffect(() => {
@@ -228,10 +231,12 @@ export default function MusicPlayer() {
     // Only drag with left mouse button or touch
     if (e.button !== 0 && e.pointerType !== "touch") return;
 
-    e.preventDefault();
-    e.stopPropagation();
+    // Capture pointer to ensure we receive all move/up events
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
 
-    setIsDragging(true);
+    // Store pointer ID
+    dragStartRef.current.pointerId = e.pointerId;
 
     // Store initial pointer position and current element position
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -245,16 +250,32 @@ export default function MusicPlayer() {
       y: e.clientY,
       left: currentLeft,
       bottom: currentBottom,
+      pointerId: e.pointerId,
     };
+
+    // Reset drag distance counter - only count as drag after threshold
+    dragDistanceRef.current = 0;
+
+    // Don't set dragging=true yet - we need to check if it's a drag or tap
   }, []);
 
-  useEffect(() => {
-    if (!isDragging) return;
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    // Only track movement if we have a pointer ID from pointerdown
+    if (dragStartRef.current.pointerId !== e.pointerId) return;
 
-    function handlePointerMove(e: PointerEvent) {
-      const dx = e.clientX - dragStartRef.current.x;
-      const dy = e.clientY - dragStartRef.current.y;
+    // Calculate distance moved
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
 
+    // Check if we've moved beyond threshold to start dragging
+    if (!isDragging && distance > DRAG_THRESHOLD) {
+      setIsDragging(true);
+      // Now that we're dragging, prevent further page scroll
+      e.preventDefault();
+    }
+
+    if (isDragging) {
       const newLeft = dragStartRef.current.left + dx;
       // When using bottom positioning, Y delta is inverted:
       // Dragging UP (dy < 0) means player should move UP (larger bottom value)
@@ -276,18 +297,92 @@ export default function MusicPlayer() {
         right: "auto",
         bottom: `${constrainedBottom}px`,
       });
+    } else {
+      // Track distance even before drag starts
+      dragDistanceRef.current = distance;
+    }
+  }, [isDragging]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    // Only handle if this is our captured pointer
+    if (dragStartRef.current.pointerId !== e.pointerId) return;
+
+    const target = e.currentTarget as HTMLElement;
+    target.releasePointerCapture(e.pointerId);
+
+    // Reset pointer ID
+    dragStartRef.current.pointerId = -1;
+
+    // If we didn't drag beyond threshold, it was a tap - allow click behavior
+    if (!isDragging && dragDistanceRef.current <= DRAG_THRESHOLD) {
+      // This was a tap, not a drag - let click handler operate
+      // Don't stop propagation here, let the click propagate
     }
 
-    function handlePointerUp() {
+    setIsDragging(false);
+    dragDistanceRef.current = 0;
+  }, [isDragging]);
+
+  const handlePointerCancel = useCallback((e: React.PointerEvent) => {
+    // Handle cancellation (e.g., touch cancel)
+    if (dragStartRef.current.pointerId !== e.pointerId) return;
+
+    const target = e.currentTarget as HTMLElement;
+    target.releasePointerCapture(e.pointerId);
+
+    dragStartRef.current.pointerId = -1;
+    setIsDragging(false);
+    dragDistanceRef.current = 0;
+  }, []);
+
+  // Global pointer move/up/cancel handlers - these handle the drag outside the element
+  useEffect(() => {
+    if (!isDragging) return;
+
+    // Window-level handlers to catch movements even outside the element
+    function onWindowPointerMove(e: PointerEvent) {
+      if (dragStartRef.current.pointerId !== e.pointerId) return;
+      if (e.buttons === 0 && e.type !== "pointermove") return;
+
+      const dx = e.clientX - dragStartRef.current.x;
+      const dy = e.clientY - dragStartRef.current.y;
+      const newLeft = dragStartRef.current.left + dx;
+      const newBottom = dragStartRef.current.bottom - dy;
+
+      // Constrain to viewport
+      const padding = 16;
+      const containerWidth = window.innerWidth;
+      const containerHeight = window.innerHeight;
+      const playerWidth = 100;
+      const playerHeight = 60;
+
+      const constrainedLeft = Math.max(padding, Math.min(newLeft, containerWidth - playerWidth - padding));
+      const constrainedBottom = Math.max(padding, Math.min(newBottom, containerHeight - playerHeight - padding));
+
+      setPosition({
+        left: `${constrainedLeft}px`,
+        right: "auto",
+        bottom: `${constrainedBottom}px`,
+      });
+    }
+
+    function onWindowPointerUp(e: PointerEvent) {
+      if (dragStartRef.current.pointerId !== e.pointerId) return;
+
+      const target = document.getElementById("music-player-handle");
+      if (target) target.releasePointerCapture(e.pointerId);
+
+      dragStartRef.current.pointerId = -1;
       setIsDragging(false);
+      dragDistanceRef.current = 0;
     }
 
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointermove", onWindowPointerMove);
+    window.addEventListener("pointerup", onWindowPointerUp);
 
     return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointermove", onWindowPointerMove);
+      window.removeEventListener("pointerup", onWindowPointerUp);
     };
   }, [isDragging]);
 
@@ -338,6 +433,7 @@ export default function MusicPlayer() {
             }
           }}
           className="pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full border border-teal-100 bg-white/95 text-2xl shadow-2xl backdrop-blur-xl transition hover:scale-105 hover:bg-teal-50 cursor-grab active:cursor-grabbing"
+          style={{ touchAction: "none" }}
           aria-label={isDragging ? "Drag music player" : "Open music player"}
           title={`Now Playing: ${tracks[trackIndex].title}`}
         >
@@ -350,6 +446,7 @@ export default function MusicPlayer() {
       ) : (
         <div 
           className="pointer-events-auto w-full rounded-3xl border border-teal-100/80 bg-white/95 px-3 py-3 shadow-2xl backdrop-blur-xl sm:w-auto sm:min-w-[330px] sm:px-4 cursor-grab active:cursor-grabbing"
+          style={{ touchAction: "none" }}
           onPointerDown={handlePointerDown}
         >
           <div className="mb-3 flex items-start justify-between gap-4">
