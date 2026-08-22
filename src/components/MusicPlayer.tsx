@@ -28,8 +28,11 @@ export default function MusicPlayer() {
   const [ready, setReady] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  // Store position as pixel values for dragging
   const [position, setPosition] = useState({ left: "auto", right: "auto", bottom: "auto" });
-  const dragStartRef = useRef({ x: 0, y: 0, left: 0, right: 0 });
+  // Store raw pixel values for calculations
+  const positionRef = useRef({ left: 16, right: 20, bottom: 20 });
+  const dragStartRef = useRef({ x: 0, y: 0, left: 0, bottom: 0 });
 
   // Load saved position on mount (desktop: right, mobile: left)
   useEffect(() => {
@@ -38,8 +41,24 @@ export default function MusicPlayer() {
       try {
         const pos = JSON.parse(savedPosition);
         setPosition(pos);
+        // Restore raw values for dragging calculations
+        if (pos.left !== "auto") {
+          positionRef.current.left = parseFloat(pos.left);
+        }
+        if (pos.bottom !== "auto") {
+          positionRef.current.bottom = parseFloat(pos.bottom);
+        }
       } catch {
         // Invalid position data, use defaults
+      }
+    } else {
+      // Set initial defaults
+      if (window.innerWidth < 640) {
+        positionRef.current.left = 16;
+        positionRef.current.bottom = 16;
+      } else {
+        positionRef.current.right = 20;
+        positionRef.current.bottom = 20;
       }
     }
   }, []);
@@ -48,6 +67,13 @@ export default function MusicPlayer() {
   useEffect(() => {
     if (isDragging) return; // Don't save while dragging
     localStorage.setItem(POSITION_KEY, JSON.stringify(position));
+    // Sync raw values from position state
+    if (position.left !== "auto") {
+      positionRef.current.left = parseFloat(position.left);
+    }
+    if (position.bottom !== "auto") {
+      positionRef.current.bottom = parseFloat(position.bottom);
+    }
   }, [position, isDragging]);
 
   // Load persisted music settings
@@ -201,7 +227,6 @@ export default function MusicPlayer() {
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     // Only drag with left mouse button or touch
     if (e.button !== 0 && e.pointerType !== "touch") return;
-    if (minimized) return; // Can't drag when minimized
 
     e.preventDefault();
     e.stopPropagation();
@@ -210,32 +235,43 @@ export default function MusicPlayer() {
 
     // Store initial pointer position and current element position
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    
+    // Determine if we're using left or right positioning
+    const currentLeft = positionRef.current.left;
+    const currentBottom = positionRef.current.bottom;
+
     dragStartRef.current = {
       x: e.clientX,
       y: e.clientY,
-      left: rect.left,
-      right: rect.right,
+      left: currentLeft,
+      bottom: currentBottom,
     };
-  }, [minimized]);
+  }, []);
 
   useEffect(() => {
     if (!isDragging) return;
 
     function handlePointerMove(e: PointerEvent) {
       const dx = e.clientX - dragStartRef.current.x;
+      const dy = e.clientY - dragStartRef.current.y;
+
       const newLeft = dragStartRef.current.left + dx;
+      const newBottom = dragStartRef.current.bottom + dy;
 
       // Constrain to viewport with padding
       const padding = 16;
       const containerWidth = window.innerWidth;
+      const containerHeight = window.innerHeight;
       const playerWidth = 100; // Approximate player width in px
+      const playerHeight = 60; // Approximate player height in px
 
       const constrainedLeft = Math.max(padding, Math.min(newLeft, containerWidth - playerWidth - padding));
+      const constrainedBottom = Math.max(padding, Math.min(newBottom, containerHeight - playerHeight - padding));
 
       setPosition({
         left: `${constrainedLeft}px`,
         right: "auto",
-        bottom: "auto",
+        bottom: `${constrainedBottom}px`,
       });
     }
 
@@ -252,16 +288,16 @@ export default function MusicPlayer() {
     };
   }, [isDragging]);
 
-  // Set initial position based on screen size if not manually positioned
+  // Synce positionRef with position state when not dragging
   useEffect(() => {
-    if (position.left === "auto" && position.right === "auto") {
-      if (window.innerWidth < 640) {
-        setPosition({ left: "16px", right: "auto", bottom: "auto" });
-      } else {
-        setPosition({ right: "20px", bottom: "20px", left: "auto" });
-      }
+    if (isDragging) return;
+    if (position.left !== "auto") {
+      positionRef.current.left = parseFloat(position.left);
     }
-  }, [position.left, position.right]);
+    if (position.bottom !== "auto") {
+      positionRef.current.bottom = parseFloat(position.bottom);
+    }
+  }, [position.left, position.bottom, isDragging]);
 
   if (!ready) {
     return null;
