@@ -26,14 +26,15 @@ export default function ChatPage() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-  const container = messagesContainerRef.current;
-  if (!container) return;
+    const container = messagesContainerRef.current;
+    if (!container) return;
 
-  container.scrollTo({
-    top: container.scrollHeight,
-    behavior: "smooth",
-  });
-};
+    // Scroll to the bottom (newest messages) with smooth animation
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth",
+    });
+  };
 
   useEffect(() => {
     scrollToBottom();
