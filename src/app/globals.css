@@ -248,3 +248,185 @@ body {
   transform-origin: bottom;
   animation: music-bar 0.8s ease-in-out infinite;
 }
+
+/* ===========================================
+   PRINTER-FRIENDLY STYLES (for invoice pages)
+   =========================================== */
+/* Hide elements that shouldn't print */
+@media print {
+  /* Hide navigation and layout elements */
+  @page {
+    size: auto;
+    margin: 20mm;
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+
+  header,
+  footer,
+  .no-print,
+  button,
+  .card + .flex,
+  nav,
+  .mt-6,
+  .mb-6 {
+    display: none !important;
+  }
+
+  /* Remove card styling */
+  .card {
+    position: static;
+    overflow: visible;
+    border: 1px solid #ddd;
+    background: white;
+    padding: 0;
+    margin: 0 0 20px 0;
+    box-shadow: none;
+    transform: none !important;
+  }
+
+  .card::before {
+    display: none;
+  }
+
+  /* Remove hover effects */
+  *:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Print-friendly colors */
+  .bg-teal-50,
+  .bg-teal-100,
+  .bg-teal-200,
+  .bg-teal-300,
+  .bg-teal-400,
+  .bg-teal-500,
+  .bg-teal-600,
+  .bg-teal-700,
+  .bg-teal-800,
+  .bg-teal-900,
+  .bg-green-50,
+  .bg-green-100,
+  .bg-green-200,
+  .bg-green-300,
+  .bg-green-400,
+  .bg-green-500,
+  .bg-green-600,
+  .bg-green-700,
+  .bg-red-50,
+  .bg-red-100,
+  .bg-red-200,
+  .bg-red-300,
+  .bg-red-400,
+  .bg-red-500,
+  .bg-red-600,
+  .bg-red-700,
+  .bg-amber-50,
+  .bg-amber-600,
+  .text-teal-50,
+  .text-teal-100,
+  .text-teal-200,
+  .text-teal-300,
+  .text-teal-400,
+  .text-teal-500,
+  .text-teal-600,
+  .text-teal-700,
+  .text-teal-800,
+  .text-teal-900,
+  .text-green-50,
+  .text-green-100,
+  .text-green-200,
+  .text-green-300,
+  .text-green-400,
+  .text-green-500,
+  .text-green-600,
+  .text-green-700,
+  .text-red-50,
+  .text-red-100,
+  .text-red-200,
+  .text-red-300,
+  .text-red-400,
+  .text-red-500,
+  .text-red-600,
+  .text-red-700,
+  .text-amber-50,
+  .text-amber-600 {
+    color: #000 !important;
+    background: none !important;
+  }
+
+  /* Print-friendly outline styles */
+  .rounded-lg,
+  .rounded-2xl {
+    border-radius: 4px !important;
+  }
+
+  /* Invoice print layout */
+  .max-w-3xl {
+    max-width: 210mm !important;
+    margin: 0 auto !important;
+    border: 2px solid #0d9488;
+  }
+
+  .border-teal-900 {
+    border-color: #0f766e !important;
+  }
+
+  /* Print-friendly buttons */
+  button {
+    display: none !important;
+  }
+
+  /* Invoice header */
+  .section-title {
+    font-size: 24pt !important;
+    color: #0f766e !important;
+    margin-bottom: 8pt !important;
+  }
+
+  .text-sm,
+  .text-xs {
+    font-size: 10pt !important;
+  }
+
+  .text-lg,
+  .text-xl {
+    font-size: 12pt !important;
+  }
+
+  .text-2xl,
+  .text-3xl,
+  .text-4xl {
+    font-size: 14pt !important;
+  }
+
+  /* Table print styling */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th {
+    background: #eee !important;
+    font-weight: bold;
+    border-bottom: 2px solid #000 !important;
+  }
+
+  td {
+    border-bottom: 1px solid #ddd !important;
+  }
+
+  .text-teal-900 {
+    color: #0f766e !important;
+  }
+
+  .font-bold,
+  .font-semibold,
+  .font-medium {
+    font-weight: bold !important;
+  }
+}

@@ -1,14 +1,17 @@
+"use client";
+
 import Link from "next/link";
-import Image from "next/image";
-import { auth, signOut } from "@/auth";
+import { useState } from "react";
+import { signOut } from "next-auth/react";
+import DrawerMenu from "./DrawerMenu";
 
-export default async function Header() {
-  const session = await auth();
-  const isAdmin = session?.user?.role === "ADMIN";
-  const isClient = session?.user?.role === "CLIENT";
+interface NavProps {
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+}
 
-  const navLinks = [
-    { href: "/", label: "Home" },
+function DesktopNav({ isAuthenticated, isAdmin }: NavProps) {
+  const publicLinks = [
     { href: "/services", label: "Services" },
     { href: "/about", label: "About" },
     { href: "/wellness-library", label: "Wellness Library" },
@@ -18,172 +21,177 @@ export default async function Header() {
     { href: "/contact", label: "Contact" },
   ];
 
+  if (!isAuthenticated) {
+    return (
+      <div className="hidden lg:flex items-center gap-3">
+        <nav className="flex items-center gap-6 mr-4">
+          {publicLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-sm text-teal-100 hover:text-white transition-colors"
+              prefetch={false}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+        <Link
+          href="/login"
+          className="text-sm text-teal-100 hover:text-white transition-colors"
+          prefetch={false}
+        >
+          Log In
+        </Link>
+        <Link
+          href="/register"
+          className="btn-primary !px-4 !py-2 text-xs"
+          prefetch={false}
+        >
+          Register
+        </Link>
+      </div>
+    );
+  }
+
+  const adminLinks = [
+    { href: "/admin", label: "Admin Dashboard" },
+    { href: "/admin/invoices", label: "Invoices" },
+    { href: "/admin/companies", label: "Companies" },
+  ];
+
+  const clientLinks = [
+    { href: "/dashboard", label: "Dashboard" },
+    { href: "/dashboard/billing", label: "Billing" },
+  ];
+
   return (
-    <header className="bg-teal-900 text-white shadow-lg sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
-          <Link href="/" className="flex items-center gap-3 min-w-0">
-            <Image
-              src="/assets/Dr. CBJ Logo.png"
-              alt="Dr. CBJ Mental Wellness"
-              width={56}
-              height={56}
-              className="rounded-full object-contain shrink-0"
-              priority
+    <div className="hidden lg:flex items-center gap-3">
+      <nav className="flex items-center gap-6 mr-4">
+        {publicLinks.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="text-sm text-teal-100 hover:text-white transition-colors"
+            prefetch={false}
+          >
+            {link.label}
+          </Link>
+        ))}
+      </nav>
+      {isAdmin ? (
+        <>
+          {adminLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="btn-gold !px-4 !py-2 text-xs"
+              prefetch={false}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </>
+      ) : (
+        <>
+          {clientLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="btn-gold !px-4 !py-2 text-xs"
+              prefetch={false}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </>
+      )}
+      <button
+        type="button"
+        onClick={async () => {
+          await signOut({ redirectTo: "/" });
+        }}
+        className="text-sm text-teal-100 hover:text-white transition-colors"
+      >
+        Sign Out
+      </button>
+    </div>
+  );
+}
+
+export default function Header() {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Client-side auth check using useSession
+  // This is safe because next-auth/react only includes client bindings
+  // The auth.ts file is NOT imported here - they use the same auth system
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Use next-auth/react hooks safely - these don't import auth.ts
+  // import their own client-side session handling
+  if (typeof window !== "undefined") {
+    const { useSession } = require("next-auth/react");
+    const { data: session } = useSession();
+    
+    if (session?.user) {
+      setIsAuthenticated(true);
+      setIsAdmin(session.user.role === "ADMIN");
+    }
+  }
+
+  return (
+    <>
+      <header className="bg-teal-900 text-white shadow-lg sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            <Link href="/" className="flex items-center gap-3 min-w-0">
+              <img
+                src="/assets/Dr. CBJ Logo.png"
+                alt="Dr. CBJ Mental Wellness"
+                className="rounded-full object-contain shrink-0 w-14 h-14"
+              />
+              <div className="hidden sm:block min-w-0">
+                <span className="text-lg font-bold block">
+                  Dr. CBJ Mental Wellness
+                </span>
+                <span className="block text-xs text-teal-200">
+                  ... of Manor Group Health
+                  <span className="text-amber-400 font-semibold">+</span>
+                </span>
+              </div>
+            </Link>
+
+            <DesktopNav
+              isAuthenticated={isAuthenticated}
+              isAdmin={isAdmin}
             />
 
-            <div className="hidden sm:block min-w-0">
-              <span className="text-lg font-bold block">
-                Dr. CBJ Mental Wellness
-              </span>
-
-              <span className="block text-xs text-teal-200">
-                ... of Manor Group Health
-                <span className="text-amber-400 font-semibold">+</span>
-              </span>
-            </div>
-          </Link>
-
-          <nav className="hidden lg:flex items-center gap-6">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-sm text-teal-100 hover:text-white transition-colors"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-3">
-            {session ? (
-              <>
-                {isAdmin && (
-                  <>
-                    <Link
-                      href="/admin"
-                      className="btn-gold !px-4 !py-2 text-xs"
-                    >
-                      Admin Dashboard
-                    </Link>
-
-                    <Link
-                      href="/admin/settings"
-                      className="text-sm text-teal-100 hover:text-white transition-colors"
-                    >
-                      Settings
-                    </Link>
-                  </>
-                )}
-
-                {isClient && (
-                  <>
-                    <Link
-                      href="/dashboard"
-                      className="btn-gold !px-4 !py-2 text-xs"
-                    >
-                      Dashboard
-                    </Link>
-
-                    <Link
-                      href="/dashboard/billing"
-                      className="text-sm text-teal-100 hover:text-white transition-colors"
-                    >
-                      Billing
-                    </Link>
-                  </>
-                )}
-
-                <form
-                  action={async () => {
-                    "use server";
-                    await signOut({ redirectTo: "/" });
-                  }}
-                >
-                  <button
-                    type="submit"
-                    className="text-sm text-teal-100 hover:text-white transition-colors"
-                  >
-                    Sign Out
-                  </button>
-                </form>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="text-sm text-teal-100 hover:text-white transition-colors"
-                >
-                  Log In
-                </Link>
-
-                <Link
-                  href="/register"
-                  className="btn-primary !px-4 !py-2 text-xs"
-                >
-                  Register
-                </Link>
-              </>
-            )}
+            <button
+              id="mobile-menu-toggle"
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden inline-flex items-center justify-center p-2 rounded-md text-teal-100 hover:text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2 focus:ring-offset-teal-900 transition-colors"
+              aria-label="Open navigation menu"
+              aria-expanded={isMobileMenuOpen}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" x2="20" y1="12" y2="12" />
+                <line x1="4" x2="20" y1="6" y2="6" />
+                <line x1="4" x2="20" y1="18" y2="18" />
+              </svg>
+            </button>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="lg:hidden border-t border-teal-800">
-        <details className="group">
-          <summary className="px-4 py-3 cursor-pointer list-none flex items-center justify-between text-sm font-medium text-teal-100">
-            <span>Menu</span>
-            <span className="text-lg group-open:rotate-180 transition-transform">
-              ▾
-            </span>
-          </summary>
-
-          <nav className="border-t border-teal-800 px-4 py-3 grid grid-cols-2 gap-2 bg-teal-950/30">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="rounded-lg px-3 py-3 text-sm text-teal-100 hover:bg-teal-800 hover:text-white transition-colors"
-              >
-                {link.label}
-              </Link>
-            ))}
-
-            {isAdmin && (
-              <>
-                <Link
-                  href="/admin"
-                  className="rounded-lg px-3 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
-                >
-                  Admin Dashboard
-                </Link>
-
-                <Link
-                  href="/admin/invoices"
-                  className="rounded-lg px-3 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
-                >
-                  Invoices and Payments
-                </Link>
-
-                <Link
-                  href="/admin/companies"
-                  className="rounded-lg px-3 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
-                >
-                  Companies
-                </Link>
-
-                <Link
-                  href="/admin/settings"
-                  className="rounded-lg px-3 py-3 text-sm font-semibold text-amber-300 hover:bg-teal-800 hover:text-white transition-colors"
-                >
-                  Settings
-                </Link>
-              </>
-            )}
-          </nav>
-        </details>
-      </div>
-    </header>
+      <DrawerMenu
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+        isAuthenticated={isAuthenticated}
+        isAdmin={isAdmin}
+        isClient={!isAdmin}
+      />
+    </>
   );
 }

@@ -23,21 +23,30 @@ export default async function DashboardPage() {
     );
   }
 
-  const [appointments, profile, notifications] = await Promise.all([
-  prisma.appointment.findMany({
-    where: { email: session?.user?.email || "" },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-  }),
-  prisma.profile.findUnique({
-    where: { userId },
-  }),
-  prisma.notification.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    take: 10,
-  }),
-]);
+  const [appointments, profile, notifications, user] = await Promise.all([
+    prisma.appointment.findMany({
+      where: { email: session?.user?.email || "" },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+    prisma.profile.findUnique({
+      where: { userId },
+    }),
+    prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { intakeCompletedAt: true },
+    }),
+  ]);
+
+  // Intake is required before the first appointment. New clients (or anyone
+  // whose intakeCompletedAt is null) see a daily reminder notice at the top of
+  // their dashboard. Existing completed intake remains intact.
+  const intakeComplete = Boolean(user?.intakeCompletedAt);
 
   return (
     <div className="py-16">
@@ -47,11 +56,25 @@ export default async function DashboardPage() {
             <h1 className="section-title">
               Welcome, {profile?.fullName || session?.user?.name || "Friend"}
             </h1>
-            <p className="text-gray-600">
-              Your personal wellness dashboard. Track your appointments, explore
-              resources, and continue your healing journey.
+          <p className="text-gray-600">
+            Your personal wellness dashboard. Track your appointments, explore
+            resources, and continue your healing journey.
+          </p>
+        </div>
+
+        {!intakeComplete && (
+          <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4">
+            <p className="text-sm text-amber-900">
+              Please complete your intake form before your first appointment.
             </p>
+            <Link
+              href="/dashboard/intake"
+              className="mt-2 inline-block rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+            >
+              Complete Intake Form
+            </Link>
           </div>
+        )}
 
           <NotificationBell
             notifications={notifications.map((notification) => ({

@@ -41,7 +41,10 @@ export default async function BillingPage({
   // DRAFT (admin-only) and CANCELLED are filtered out server-side.
   const invoices = await prisma.invoice.findMany({
     where: {
-      userId,
+      OR: [
+        { userId },
+        { company: { employees: { some: { id: userId } } } },
+      ],
       status: { in: ["SENT", "PARTIALLY_PAID", "PAID", "OVERDUE"] },
     },
     include: {

@@ -13,6 +13,8 @@ import { notFound } from "next/navigation";
 import EditInvoiceForm from "@/components/admin/EditInvoiceForm";
 import PaymentForm from "@/components/admin/PaymentForm";
 import SendInvoiceButton from "@/components/admin/SendInvoiceButton";
+import { siteConfig } from "@/lib/site";
+import { getAppUrl } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -333,7 +335,25 @@ export default async function AdminInvoiceDetailPage({
           </div>
         )}
 
-        {/* Line Items (read-only view — edit via “Edit Invoice” above) */}
+        {/* Print Action */}
+        <div className="card mb-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-teal-900">Actions</h2>
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-2 bg-teal-700 hover:bg-teal-800 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+              </svg>
+              Print Invoice
+            </button>
+          </div>
+        </div>
+
+        {/* Line Items (read-only view — edit via "Edit Invoice" above) */}
         <div className="card mb-8 overflow-x-auto">
           <h2 className="text-lg font-bold text-teal-900 mb-4">
             Line Items ({invoice.items.length})

@@ -41,6 +41,10 @@ model User {
   company          Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
   companyId        String?
   billedItems      InvoiceItem[]      @relation("InvoiceItemEmployee")
+
+  // Intake completion tracking (durable, drives client reminders)
+  intakeCompletedAt        DateTime?
+  intakeReminderLastSentAt DateTime?
 }
 
 enum Role {

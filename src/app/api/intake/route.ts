@@ -74,6 +74,17 @@ export async function POST(request: Request) {
       },
     });
 
+    // Mark intake as completed and stop all reminders.
+    // Existing completed intake remains untouched; this only sets/updates
+    // the completion timestamp for a client who just submitted.
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        intakeCompletedAt: new Date(),
+        intakeReminderLastSentAt: null,
+      },
+    });
+
     await prisma.profile.upsert({
       where: {
         userId: session.user.id,

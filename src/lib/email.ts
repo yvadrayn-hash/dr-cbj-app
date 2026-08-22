@@ -175,6 +175,47 @@ export async function sendPaymentRecordedEmail({
 }
 
 /**
+ * Daily intake-form reminder sent to clients who have not yet completed
+ * their intake. Contains only the CTA link — never intake content.
+ */
+export async function sendIntakeReminderEmail({
+  to,
+  fullName,
+  intakeUrl,
+}: {
+  to: string;
+  fullName: string;
+  intakeUrl: string;
+}) {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is not configured");
+  }
+
+  return resend.emails.send({
+    from: fromEmail,
+    to,
+    subject: "Complete Your Dr. CBJ Intake Form",
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#163c3c;">
+        <h2 style="margin-bottom:16px;">Complete Your Dr. CBJ Intake Form</h2>
+        <p style="font-size:16px;line-height:1.6;">Dear ${fullName},</p>
+        <p style="font-size:16px;line-height:1.6;">Before your first appointment with Dr. CBJ Mental Wellness, please complete your intake form. This helps Dr. CBJ prepare for your session.</p>
+        <div style="margin:24px 0;text-align:center;">
+          <a href="${intakeUrl}" style="display:inline-block;background:#0d9488;color:#fff;padding:12px 24px;border-radius:9999px;text-decoration:none;font-weight:bold;">
+            Complete Intake Form
+          </a>
+        </div>
+        <p style="font-size:14px;color:#666;line-height:1.6;">
+          If the button above does not work, copy and paste this link into your browser:<br />
+          <span style="word-break:break-all;color:#0d9488;">${intakeUrl}</span>
+        </p>
+        ${brandFooter()}
+      </div>
+    `,
+  });
+}
+
+/**
  * Admin notification: a client submitted a payment declaration.
  */
 export async function sendPaymentSubmittedAdminEmail({

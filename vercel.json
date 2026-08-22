@@ -1,0 +1,13 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/intake-reminders",
+      "schedule": "0 14 * * *",
+      "timezone": "Etc/UTC",
+      "method": "GET",
+      "headers": {
+        "Authorization": "Bearer ${CRON_SECRET}"
+      }
+    }
+  ]
+}

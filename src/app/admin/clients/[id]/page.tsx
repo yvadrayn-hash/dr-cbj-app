@@ -97,6 +97,31 @@ export default async function ClientDetailPage({
               label="Registered"
               value={client.createdAt.toLocaleDateString()}
             />
+
+            <div className="md:col-span-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Intake Status
+              </p>
+              <div className="mt-1 flex items-center gap-3">
+                <span
+                  className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                    client.intakeCompletedAt
+                      ? "bg-green-100 text-green-800"
+                      : "bg-amber-100 text-amber-800"
+                  }`}
+                >
+                  {client.intakeCompletedAt
+                    ? "Intake Complete"
+                    : "Intake Incomplete"}
+                </span>
+                {client.intakeCompletedAt && (
+                  <span className="text-xs text-gray-500">
+                    Completed{" "}
+                    {new Date(client.intakeCompletedAt).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
