@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const tracks = [
   { src: "/assets/Dr. CBJ App Music 1.mp3", title: "Calm Welcome" },
@@ -17,6 +17,7 @@ const TRACK_KEY = "drcbj-music-track";
 const PLAY_KEY = "drcbj-music-playing";
 const VOLUME_KEY = "drcbj-music-volume";
 const MINIMIZED_KEY = "drcbj-music-minimized";
+const POSITION_KEY = "drcbj-music-position";
 
 export default function MusicPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -26,7 +27,30 @@ export default function MusicPlayer() {
   const [volume, setVolume] = useState(0.25);
   const [ready, setReady] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [position, setPosition] = useState({ left: "auto", right: "auto", bottom: "auto" });
+  const dragStartRef = useRef({ x: 0, y: 0, left: 0, right: 0 });
 
+  // Load saved position on mount (desktop: right, mobile: left)
+  useEffect(() => {
+    const savedPosition = localStorage.getItem(POSITION_KEY);
+    if (savedPosition) {
+      try {
+        const pos = JSON.parse(savedPosition);
+        setPosition(pos);
+      } catch {
+        // Invalid position data, use defaults
+      }
+    }
+  }, []);
+
+  // Save position on change (debounced slightly via effect dependency)
+  useEffect(() => {
+    if (isDragging) return; // Don't save while dragging
+    localStorage.setItem(POSITION_KEY, JSON.stringify(position));
+  }, [position, isDragging]);
+
+  // Load persisted music settings
   useEffect(() => {
     const savedTrack = Number(localStorage.getItem(TRACK_KEY));
     const savedVolume = Number(localStorage.getItem(VOLUME_KEY));
@@ -173,12 +197,90 @@ export default function MusicPlayer() {
     });
   }
 
+  // Drag handling with pointer events
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Only drag with left mouse button or touch
+    if (e.button !== 0 && e.pointerType !== "touch") return;
+    if (minimized) return; // Can't drag when minimized
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    setIsDragging(true);
+
+    // Store initial pointer position and current element position
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      left: rect.left,
+      right: rect.right,
+    };
+  }, [minimized]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    function handlePointerMove(e: PointerEvent) {
+      const dx = e.clientX - dragStartRef.current.x;
+      const newLeft = dragStartRef.current.left + dx;
+
+      // Constrain to viewport with padding
+      const padding = 16;
+      const containerWidth = window.innerWidth;
+      const playerWidth = 100; // Approximate player width in px
+
+      const constrainedLeft = Math.max(padding, Math.min(newLeft, containerWidth - playerWidth - padding));
+
+      setPosition({
+        left: `${constrainedLeft}px`,
+        right: "auto",
+        bottom: "auto",
+      });
+    }
+
+    function handlePointerUp() {
+      setIsDragging(false);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [isDragging]);
+
+  // Set initial position based on screen size if not manually positioned
+  useEffect(() => {
+    if (position.left === "auto" && position.right === "auto") {
+      if (window.innerWidth < 640) {
+        setPosition({ left: "16px", right: "auto", bottom: "auto" });
+      } else {
+        setPosition({ right: "20px", bottom: "20px", left: "auto" });
+      }
+    }
+  }, [position.left, position.right]);
+
   if (!ready) {
     return null;
   }
 
+  // Get the active position style
+  const positionStyle: React.CSSProperties = {};
+  if (position.left !== "auto") {
+    positionStyle.left = position.left;
+  }
+  if (position.right !== "auto") {
+    positionStyle.right = position.right;
+  }
+  if (position.bottom !== "auto") {
+    positionStyle.bottom = position.bottom;
+  }
+
   return (
-    <div className="pointer-events-none fixed bottom-3 left-3 right-3 z-50 flex justify-end sm:bottom-5 sm:left-auto sm:right-5">
+    <div className="pointer-events-none fixed z-50" style={positionStyle}>
       <audio
         ref={audioRef}
         preload="metadata"
@@ -188,9 +290,16 @@ export default function MusicPlayer() {
       {minimized ? (
         <button
           type="button"
-          onClick={toggleMinimized}
-          className="pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full border border-teal-100 bg-white/95 text-2xl shadow-2xl backdrop-blur-xl transition hover:scale-105 hover:bg-teal-50"
-          aria-label="Open music player"
+          onPointerDown={(e) => handlePointerDown(e as React.PointerEvent)}
+          onClick={(e) => {
+            // Prevent drag when clicking quickly to open
+            if (!isDragging) {
+              e.stopPropagation();
+              toggleMinimized();
+            }
+          }}
+          className="pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full border border-teal-100 bg-white/95 text-2xl shadow-2xl backdrop-blur-xl transition hover:scale-105 hover:bg-teal-50 cursor-grab active:cursor-grabbing"
+          aria-label={isDragging ? "Drag music player" : "Open music player"}
           title={`Now Playing: ${tracks[trackIndex].title}`}
         >
           {"\u{1F3B5}"}
@@ -200,7 +309,10 @@ export default function MusicPlayer() {
           )}
         </button>
       ) : (
-        <div className="pointer-events-auto w-full rounded-3xl border border-teal-100/80 bg-white/95 px-3 py-3 shadow-2xl backdrop-blur-xl sm:w-auto sm:min-w-[330px] sm:px-4">
+        <div 
+          className="pointer-events-auto w-full rounded-3xl border border-teal-100/80 bg-white/95 px-3 py-3 shadow-2xl backdrop-blur-xl sm:w-auto sm:min-w-[330px] sm:px-4 cursor-grab active:cursor-grabbing"
+          onPointerDown={handlePointerDown}
+        >
           <div className="mb-3 flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gold-600">
