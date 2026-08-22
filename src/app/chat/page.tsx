@@ -39,9 +39,20 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
+   async function handleSubmit(e: React.FormEvent) {
+     console.log("[CHAT_SUBMIT] Form submission started");
+     e.preventDefault();
+     
+     if (!input.trim()) {
+       console.log("[CHAT_SUBMIT] Empty input - ignoring");
+       return;
+     }
+     if (loading) {
+       console.log("[CHAT_SUBMIT] Already loading - ignoring duplicate submit");
+       return;
+     }
+     
+     console.log("[CHAT_SUBMIT] Valid submission, input length:", input.trim().length);
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -49,11 +60,13 @@ export default function ChatPage() {
       content: input.trim(),
     };
 
+    console.log("[CHAT_SUBMIT] Adding user message to state");
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
 
     try {
+      console.log("[CHAT_SUBMIT] Fetching /api/chat...");
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,7 +77,15 @@ export default function ChatPage() {
         }),
       });
 
+      console.log("[CHAT_SUBMIT] API response received, status:", res.status);
+      console.log("[CHAT_SUBMIT] Response headers:", Object.fromEntries(res.headers.entries()));
+
+      if (!res.ok) {
+        throw new Error(`API returned status ${res.status}`);
+      }
+
       const data = await res.json();
+      console.log("[CHAT_SUBMIT] JSON parsed successfully, isCrisis:", data.isCrisis);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -73,8 +94,12 @@ export default function ChatPage() {
         isCrisis: data.isCrisis,
       };
 
+      console.log("[CHAT_SUBMIT] Adding assistant message to state");
       setMessages((prev) => [...prev, assistantMessage]);
-    } catch {
+      console.log("[CHAT_SUBMIT] Session ID used:", sessionId);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error("[CHAT_SUBMIT] Fetch failed:", errorMsg);
       setMessages((prev) => [
         ...prev,
         {
@@ -85,6 +110,7 @@ export default function ChatPage() {
       ]);
     } finally {
       setLoading(false);
+      console.log("[CHAT_SUBMIT] Loading complete, setLoading(false)");
     }
   }
 

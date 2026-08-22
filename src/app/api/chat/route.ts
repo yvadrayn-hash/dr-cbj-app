@@ -193,9 +193,13 @@ const messageSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    // Safe server logging - only log incoming request, no sensitive data
+    console.log("POST /api/chat request received");
+    
     // Abuse protection for the AI endpoint
     const limit = rateLimit(`chat:${getClientIp(request)}`, 30, 60 * 1000);
     if (!limit.allowed) {
+      console.log("POST /api/chat ratelimited");
       return NextResponse.json(
         { error: "Too many messages. Please wait a moment and try again." },
         { status: 429 }
@@ -209,6 +213,7 @@ export async function POST(request: Request) {
     const parsed = messageSchema.safeParse(body);
 
     if (!parsed.success) {
+      console.log("POST /api/chat invalid input:", parsed.error?.toString());
       return NextResponse.json(
         { error: "Invalid input" },
         { status: 400 }
