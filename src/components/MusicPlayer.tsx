@@ -32,10 +32,14 @@ export default function MusicPlayer() {
 
   // Position as pixel values
   const [position, setPosition] = useState({ left: 16, top: 16 });
-  const dragStartRef = useRef({ x: 0, y: 0, left: 0, top: 0 });
-  const isDraggingRef = useRef(false);
+
+  // Drag state refs
+  const dragStartRef = useRef({ x: 0, y: 0, left: 0, top: 0, width: 0, height: 0 });
+  const didDragRef = useRef(false);
   const dragThreshold = 8;
-  const dragDistanceRef = useRef(0);
+
+  // Refs for measuring actual player size - use any to support both button and div
+  const playerRef = useRef<any | null>(null);
 
   // Load position on mount
   useEffect(() => {
@@ -45,10 +49,12 @@ export default function MusicPlayer() {
     let defaultLeft = 16;
     let defaultTop = 16;
 
+    // Desktop default (bottom-right)
     if (window.innerWidth >= 640) {
       defaultLeft = window.innerWidth - 100 - 20;
       defaultTop = window.innerHeight - 60 - 20;
     } else {
+      // Mobile default (bottom-left)
       defaultLeft = 16;
       defaultTop = window.innerHeight - 60 - 20;
     }
@@ -68,7 +74,7 @@ export default function MusicPlayer() {
 
   // Save position when not dragging
   useEffect(() => {
-    if (isDraggingRef.current) return;
+    if (didDragRef.current) return;
     localStorage.setItem(POSITION_KEY, JSON.stringify(position));
     localStorage.setItem(POSITION_X_KEY, String(position.left));
     localStorage.setItem(POSITION_Y_KEY, String(position.top));
@@ -101,11 +107,11 @@ export default function MusicPlayer() {
     }
 
     setIsPlaying(savedPlayState === null ? true : savedPlayState === "true");
-
     setMinimized(savedMinimizedState === null ? window.innerWidth < 640 : savedMinimizedState === "true");
     setReady(true);
   }, []);
 
+  // Audio volume effect
   useEffect(() => {
     if (!ready) return;
     const audio = audioRef.current;
@@ -114,6 +120,7 @@ export default function MusicPlayer() {
     localStorage.setItem(VOLUME_KEY, String(volume));
   }, [volume, ready]);
 
+  // Track loading effect
   useEffect(() => {
     if (!ready) return;
     const audio = audioRef.current;
@@ -128,6 +135,7 @@ export default function MusicPlayer() {
     }
   }, [trackIndex, ready]);
 
+  // Play state effect
   useEffect(() => {
     if (!ready) return;
     const audio = audioRef.current;
@@ -137,6 +145,7 @@ export default function MusicPlayer() {
     else audio.pause();
   }, [isPlaying, ready]);
 
+  // First interaction autoplay
   useEffect(() => {
     function startOnFirstInteraction() {
       const audio = audioRef.current;
@@ -160,15 +169,16 @@ export default function MusicPlayer() {
     };
   }, []);
 
-  // Re-clamp position on viewport resize
+  // Re-clamp position on viewport resize - measure actual size
   useEffect(() => {
     function handleResize() {
       const padding = 16;
       const viewportWidth = window.visualViewport?.width || window.innerWidth;
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
 
-      const playerWidth = minimized ? 56 : 330;
-      const playerHeight = minimized ? 56 : 60;
+      // Measure actual player size
+      const playerWidth = playerRef.current?.getBoundingClientRect().width || (minimized ? 56 : 330);
+      const playerHeight = playerRef.current?.getBoundingClientRect().height || (minimized ? 56 : 60);
 
       setPosition((prev) => ({
         left: Math.min(Math.max(prev.left, padding), Math.max(padding, viewportWidth - playerWidth - padding)),
@@ -210,62 +220,100 @@ export default function MusicPlayer() {
     });
   }
 
-  // Expand-mode drag handlers - only on the drag handle, prevents propagation to controls
-  const handleDragStart = useCallback((e: React.PointerEvent) => {
-    e.stopPropagation();
+  // Get actual player dimensions
+  const getPlayerDimensions = useCallback(() => {
+    const rect = playerRef.current?.getBoundingClientRect();
+    return {
+      width: rect?.width || (minimized ? 56 : 330),
+      height: rect?.height || (minimized ? 56 : 60),
+    };
+  }, [minimized]);
+
+  // Pointer event handlers for drag
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Only left click or touch
     if (e.button !== 0 && e.pointerType !== "touch") return;
+
+    // Prevent default to avoid text selection on touch
+    e.preventDefault();
+    e.stopPropagation();
 
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
 
-    dragStartRef.current = { x: e.clientX, y: e.clientY, left: position.left, top: position.top };
-    dragDistanceRef.current = 0;
-    isDraggingRef.current = false;
-  }, [position.left, position.top]);
+    const { width, height } = getPlayerDimensions();
 
-  const handleDragMove = useCallback((e: React.PointerEvent) => {
+    // Store drag start info
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      left: position.left,
+      top: position.top,
+      width,
+      height,
+    };
+
+    didDragRef.current = false;
+  }, [position.left, position.top, getPlayerDimensions]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
+
     if (!dragStartRef.current.left) return;
 
     const dx = e.clientX - dragStartRef.current.x;
     const dy = e.clientY - dragStartRef.current.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (!isDraggingRef.current && distance > dragThreshold) {
-      isDraggingRef.current = true;
+    // Track drag after threshold
+    if (distance > dragThreshold) {
+      didDragRef.current = true;
+      e.preventDefault();
     }
 
-    if (isDraggingRef.current) {
-      const newLeft = dragStartRef.current.left + dx;
-      const newTop = dragStartRef.current.top + dy;
-
+    if (didDragRef.current) {
       const padding = 16;
-      const playerWidth = 330;
-      const playerHeight = 60;
-
+      const { width, height } = dragStartRef.current;
       const viewportWidth = window.visualViewport?.width || window.innerWidth;
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
 
+      const newLeft = dragStartRef.current.left + dx;
+      const newTop = dragStartRef.current.top + dy;
+
+      // Clamp to viewport
+      const minX = padding;
+      const maxX = Math.max(padding, viewportWidth - width - padding);
+      const minY = padding;
+      const maxY = Math.max(padding, viewportHeight - height - padding);
+
       setPosition({
-        left: Math.max(padding, Math.min(newLeft, viewportWidth - playerWidth - padding)),
-        top: Math.max(padding, Math.min(newTop, viewportHeight - playerHeight - padding)),
+        left: Math.min(Math.max(newLeft, minX), maxX),
+        top: Math.min(Math.max(newTop, minY), maxY),
       });
-      e.preventDefault();
-    } else {
-      dragDistanceRef.current = distance;
     }
   }, []);
 
-  const handleDragEnd = useCallback((e: React.PointerEvent) => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
     const target = e.currentTarget as HTMLElement;
     target.releasePointerCapture(e.pointerId);
-    dragStartRef.current = { x: 0, y: 0, left: 0, top: 0 };
-    isDraggingRef.current = false;
-    dragDistanceRef.current = 0;
+
+    dragStartRef.current = { x: 0, y: 0, left: 0, top: 0, width: 0, height: 0 };
+    // DRAG STATE IS PRESERVED UNTIL CLICK IS HANDLED
+  }, []);
+
+  const handlePointerCancel = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    target.releasePointerCapture(e.pointerId);
+
+    dragStartRef.current = { x: 0, y: 0, left: 0, top: 0, width: 0, height: 0 };
+    didDragRef.current = false;
   }, []);
 
   if (!ready) return null;
+
+  const { width: playerWidth, height: playerHeight } = getPlayerDimensions();
 
   return (
     <div className="pointer-events-none fixed z-50" style={{ left: position.left, top: position.top }}>
@@ -273,15 +321,23 @@ export default function MusicPlayer() {
 
       {minimized ? (
         <button
+          ref={playerRef}
           type="button"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
           onClick={(e) => {
-            if (!isDraggingRef.current) {
-              e.stopPropagation();
-              toggleMinimized();
+            e.stopPropagation();
+            // Suppress toggle if this was a drag gesture
+            if (didDragRef.current) {
+              didDragRef.current = false; // Reset after suppressing
+              return;
             }
+            toggleMinimized();
           }}
-          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full border border-teal-100 bg-white/95 text-2xl shadow-2xl backdrop-blur-xl transition hover:scale-105 hover:bg-teal-50 cursor-grab active:cursor-grabbing"
-          aria-label={isDraggingRef.current ? "Drag music player" : "Open music player"}
+          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full border border-teal-100 bg-white/95 text-2xl shadow-2xl backdrop-blur-xl transition hover:scale-105 hover:bg-teal-50 cursor-grab active:cursor-grabbing touch-action-none"
+          aria-label={didDragRef.current ? "Drag music player" : "Open music player"}
           title={`Now Playing: ${tracks[trackIndex].title}`}
         >
           {"\u{1F3B5}"}
@@ -289,16 +345,16 @@ export default function MusicPlayer() {
         </button>
       ) : (
         <div
+          ref={playerRef}
           className="pointer-events-auto w-full rounded-3xl border border-teal-100/80 bg-white/95 px-3 py-3 shadow-2xl backdrop-blur-xl sm:w-auto sm:min-w-[330px] sm:px-4"
-          style={{ touchAction: "none", WebkitUserSelect: "none" }}
         >
-          {/* Drag handle */}
+          {/* Drag handle - only this section initiates drag */}
           <div
-            className="mb-3 flex items-start justify-between gap-4 cursor-grab active:cursor-grabbing"
-            onPointerDown={handleDragStart}
-            onPointerMove={handleDragMove}
-            onPointerUp={handleDragEnd}
-            onPointerCancel={handleDragEnd}
+            className="mb-3 flex items-start justify-between gap-4 cursor-grab active:cursor-grabbing touch-action-none"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
           >
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gold-600">Now Playing</p>
@@ -307,8 +363,11 @@ export default function MusicPlayer() {
 
             <button
               type="button"
-              onClick={toggleMinimized}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-sm text-gray-400 transition hover:bg-gray-100 hover:text-teal-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleMinimized();
+              }}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-sm text-gray-400 transition hover:bg-gray-100 hover:text-teal-700 touch-action-auto"
               aria-label="Minimize music player"
               title="Minimize"
             >
@@ -316,10 +375,14 @@ export default function MusicPlayer() {
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Controls - pointer-events-auto to prevent drag on controls */}
+          <div className="flex items-center gap-3 pointer-events-auto">
             <button
               type="button"
-              onClick={previousTrack}
+              onClick={(e) => {
+                e.stopPropagation();
+                previousTrack();
+              }}
               className="flex h-9 w-9 items-center justify-center rounded-full border border-teal-100 bg-white text-teal-700 hover:bg-teal-50"
               aria-label="Previous track"
             >
@@ -328,7 +391,10 @@ export default function MusicPlayer() {
 
             <button
               type="button"
-              onClick={togglePlay}
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePlay();
+              }}
               className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-teal-600 to-teal-700 text-white shadow-md transition hover:scale-105"
               aria-label={isPlaying ? "Pause music" : "Play music"}
             >
@@ -337,7 +403,10 @@ export default function MusicPlayer() {
 
             <button
               type="button"
-              onClick={nextTrack}
+              onClick={(e) => {
+                e.stopPropagation();
+                nextTrack();
+              }}
               className="flex h-9 w-9 items-center justify-center rounded-full border border-teal-100 bg-white text-teal-700 hover:bg-teal-50"
               aria-label="Next track"
             >
@@ -355,6 +424,7 @@ export default function MusicPlayer() {
                 onChange={(e) => setVolume(Number(e.target.value))}
                 className="w-16 accent-teal-600 sm:w-20"
                 aria-label="Music volume"
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
           </div>
