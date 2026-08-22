@@ -116,10 +116,10 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="py-4 sm:py-8 flex flex-col h-[calc(100vh-160px)] overflow-hidden">
+    <div className="py-6 sm:py-10 flex flex-col h-[calc(100vh-200px)] overflow-hidden">
       <div className="mx-auto max-w-4xl px-3 sm:px-6 lg:px-8 w-full flex flex-col h-full max-h-full min-h-0">
-        <div className="mb-4 text-center sm:mb-8 shrink-0 flex-shrink-0 pb-2">
-          <h1 className="section-title">AI Wellness Assistant</h1>
+        <div className="mb-3 text-center sm:mb-10 shrink-0 flex-shrink-0">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-teal-900">AI Wellness Assistant</h1>
           <p className="text-gray-600 min-h-0">
             A supportive space for general mental wellness discussions.
             <br className="hidden sm:block" />
