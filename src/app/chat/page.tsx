@@ -115,9 +115,9 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="py-4 sm:py-8">
-      <div className="mx-auto max-w-4xl px-3 sm:px-6 lg:px-8">
-        <div className="mb-4 text-center sm:mb-8">
+    <div className="py-4 sm:py-8 flex flex-col min-h-[calc(100vh-180px)]">
+      <div className="mx-auto max-w-4xl px-3 sm:px-6 lg:px-8 w-full flex flex-col">
+        <div className="mb-4 text-center sm:mb-8 shrink-0">
           <h1 className="section-title">AI Wellness Assistant</h1>
           <p className="text-gray-600">
             A supportive space for general mental wellness discussions.
@@ -129,8 +129,8 @@ export default function ChatPage() {
           </p>
         </div>
 
-        <div className="overflow-hidden rounded-2xl bg-white shadow-xl sm:rounded-3xl">
-          <div className="flex items-center gap-3 bg-teal-900 p-3 text-white sm:p-4">
+        <div className="overflow-hidden rounded-2xl bg-white shadow-xl sm:rounded-3xl flex flex-col shrink-0" style={{ maxHeight: 'calc(100vh - 160px)' }}>
+          <div className="flex items-center gap-3 bg-teal-900 p-3 text-white sm:p-4 shrink-0">
             <Image
               src="/assets/avatar.png"
               alt={siteConfig.doctorName}
@@ -146,7 +146,7 @@ export default function ChatPage() {
 
           <div
             ref={messagesContainerRef}
-            className="h-[55dvh] min-h-[360px] max-h-[600px] space-y-4 overflow-y-auto overscroll-contain p-3 sm:h-[500px] sm:p-6"
+            className="flex-1 min-h-0 space-y-4 overflow-y-auto overscroll-contain p-3 sm:p-6"
           >
             {messages.map((message) => (
               <div
@@ -228,7 +228,7 @@ export default function ChatPage() {
             )}
           </div>
 
-          <div className="border-t border-teal-100 bg-white/95 p-3 backdrop-blur-sm sm:p-4">
+          <div className="border-t border-teal-100 bg-white/95 p-3 backdrop-blur-sm sm:p-4 shrink-0">
             <form
               onSubmit={handleSubmit}
               className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:gap-3"
