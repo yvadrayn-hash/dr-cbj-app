@@ -53,7 +53,17 @@ async function generateQwenResponse(
   history: ChatHistoryItem[]
 ): Promise<string | null> {
   const apiKey = process.env.DASHSCOPE_API_KEY;
-  if (!apiKey) return null;
+  
+  // Safe logging - only log that Qwen was attempted
+  console.log("Qwen attempted");
+  
+  if (!apiKey) {
+    console.log("Qwen failed: missing DASHSCOPE_API_KEY");
+    return null;
+  }
+  
+  // Log that API key is present for Qwen (no value, just presence)
+  console.log("Qwen API key present");
 
   const client = new OpenAI({
     baseURL: "https://dashscope-us.aliyuncs.com/compatible-mode/v1",
@@ -68,6 +78,8 @@ async function generateQwenResponse(
     ...item,
     content: normalizeMessageContent(item.content),
   }));
+  
+  console.log("Qwen history normalized");
 
   try {
     const completion = await client.chat.completions.create({
@@ -86,10 +98,20 @@ async function generateQwenResponse(
       temperature: 0.6,
       max_tokens: 500,
     });
-
-    return completion.choices[0]?.message.content?.trim() || null;
+    
+    const responseText = completion.choices[0]?.message.content?.trim() || null;
+    
+    if (responseText) {
+      console.log("Qwen succeeded");
+      // Tag response for debugging (not exposed to user, just in logs)
+      console.log(`Qwen response (debug-tag: [QWEN_SUCCESS]): ${responseText.substring(0, 100)}...`);
+    }
+    
+    return responseText;
   } catch (error) {
-    console.error("Qwen API error:", error?.toString().replace(apiKey, "[REDACTED]"));
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("Qwen failed:", errorMsg);
+    // Don't log the full error if it contains sensitive data
     return null;
   }
 }
@@ -99,7 +121,16 @@ async function generateOpenRouterResponse(
   history: ChatHistoryItem[]
 ): Promise<string | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return null;
+  
+  // Safe logging
+  console.log("OpenRouter attempted");
+  
+  if (!apiKey) {
+    console.log("OpenRouter failed: missing OPENROUTER_API_KEY");
+    return null;
+  }
+  
+  console.log("OpenRouter API key present");
 
   const client = new OpenAI({
     baseURL: "https://openrouter.ai/api/v1",
@@ -114,6 +145,8 @@ async function generateOpenRouterResponse(
     ...item,
     content: normalizeMessageContent(item.content),
   }));
+  
+  console.log("OpenRouter history normalized");
 
   try {
     const completion = await client.chat.completions.create({
@@ -132,10 +165,18 @@ async function generateOpenRouterResponse(
       temperature: 0.6,
       max_tokens: 500,
     });
-
-    return completion.choices[0]?.message.content?.trim() || null;
+    
+    const responseText = completion.choices[0]?.message.content?.trim() || null;
+    
+    if (responseText) {
+      console.log("OpenRouter succeeded");
+      console.log(`OpenRouter response (debug-tag: [OR_SUCCESS]): ${responseText.substring(0, 100)}...`);
+    }
+    
+    return responseText;
   } catch (error) {
-    console.error("OpenRouter error:", error?.toString().replace(apiKey, "[REDACTED]"));
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("OpenRouter failed:", errorMsg);
     return null;
   }
 }
@@ -217,10 +258,25 @@ export async function POST(request: Request) {
       }
 
       const history = recentMessages.reverse();
-      response =
-        (await generateQwenResponse(message, history)) ||
-        (await generateOpenRouterResponse(message, history)) ||
-        generateResponse(message, history);
+      
+      console.log(`Message received, crisis: ${isCrisis}, session: ${sessionId || 'anonymous'}`);
+      
+      // Trace response selection
+      const qwenResponse = await generateQwenResponse(message, history);
+      if (qwenResponse) {
+        console.log("Qwen selected for response");
+        response = qwenResponse;
+      } else {
+        console.log("Qwen returned null, trying OpenRouter...");
+        const openRouterResponse = await generateOpenRouterResponse(message, history);
+        if (openRouterResponse) {
+          console.log("OpenRouter selected for response");
+          response = openRouterResponse;
+        } else {
+          console.log("OpenRouter returned null, using fallback");
+          response = generateResponse(message, history);
+        }
+      }
     }
 
     let activeSessionId: string | undefined;
