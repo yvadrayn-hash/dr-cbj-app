@@ -36,6 +36,15 @@ A normal client journey: register or sign in -> complete required onboarding inf
 # CLIENT DASHBOARD
 Registered clients have a Client Dashboard - their main area for managing appointments, appointment status/history, billing, invoices, payment status, and account information. When asked where something is, direct them to the right area: appointments -> dashboard/appointments area; bills and invoices -> Dashboard -> Billing. Never claim a record exists unless the app confirms it.
 
+# AUTH-AWARE NAVIGATION
+A CURRENT USER CONTEXT note tells you whether the user is signed in. Follow it strictly:
+- If the user IS signed in: never tell them to register or sign in. Direct them straight to Dashboard paths: appointments -> Dashboard; booking -> Dashboard -> Book Appointment; billing/invoices -> Dashboard -> Billing; payments -> Dashboard -> Billing -> open the invoice -> use the displayed payment option; onboarding -> the relevant onboarding area.
+- If the user is NOT signed in: for any feature that requires an account (booking, dashboard, invoices, payments), first say briefly that they need to sign in, or register if they do not yet have an account, then explain they can access their Client Dashboard. Booking example: "To book an appointment, sign in to your account first. If you don't have an account, register, then open your Client Dashboard and select Book Appointment."
+- Do not give long booking-form walkthroughs unless the client asks for detailed steps.
+
+# RESPONSE CONCISION
+For simple operational questions, answer in 1-3 short sentences by default. Do not produce long numbered guides unless the client asks for detailed steps. Answer the direct question first; give office contact information only as a secondary fallback when useful.
+
 # BILLING, INVOICES, AND PAYMENTS
 Dr. CBJ or an administrator may invoice a client after a session or service where appropriate. Clients view invoices under Dashboard -> Billing: open the invoice to see details and payment/status information, and pay through the app when payment is enabled for that invoice. Corporate billing may appear for clients associated with a corporate account. For payments: direct them to Dashboard -> Billing, open the relevant invoice, and use the payment option displayed there; after successful payment the status updates per the app's workflow. Only name payment methods/processors that are actually configured and visible in the app - never invent them. Never mark an invoice as paid because a client says so; the application's confirmed payment record is authoritative. If an invoice cannot be paid in-app, direct the client to contact the practice.
 
@@ -134,7 +143,8 @@ function classifyProviderError(error: unknown): AssistantFailureKind {
 // DeepSeek via OpenRouter - the single AI provider for the assistant
 async function generateAssistantResponse(
   input: string,
-  history: ChatHistoryItem[]
+  history: ChatHistoryItem[],
+  authContext: string
 ): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -164,7 +174,13 @@ async function generateAssistantResponse(
       {
         model: process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat",
         messages: [
-          { role: "system", content: systemPrompt },
+          {
+            role: "system",
+            // Auth context is injected here so it is never stored as a chat
+            // message. It contains only a signed-in flag and optional role -
+            // no passwords, tokens, session secrets, or private auth data.
+            content: `${systemPrompt}\n\n# CURRENT USER CONTEXT\n${authContext}`,
+          },
           ...normalizedHistory.map((item) => ({
             role:
               item.role === "ASSISTANT"
@@ -240,6 +256,13 @@ export async function POST(request: Request) {
 
     const { message, sessionId, isAnonymous } = parsed.data;
 
+    // Minimum auth context for the assistant: signed-in flag plus optional
+    // client role. No credentials, tokens, or session secrets are included.
+    const userRole = session?.user?.role;
+    const authContext = authenticatedUserId
+      ? `signed_in=true${userRole ? `, role=${userRole}` : ""}. The user is signed in: never tell them to sign in or register; give direct Dashboard navigation.`
+      : "signed_in=false. The user is not signed in: for account-required features (booking, dashboard, invoices, payments), briefly tell them to sign in first, or register if they do not have an account, then use their Client Dashboard.";
+
     const isCrisis = detectCrisis(message);
 
     let response: string;
@@ -288,7 +311,7 @@ export async function POST(request: Request) {
 
       // Single provider path: DeepSeek via OpenRouter. On failure, surface a
       // clear user-safe error state instead of falling back to canned replies.
-      response = await generateAssistantResponse(message, history);
+      response = await generateAssistantResponse(message, history, authContext);
     }
 
     let activeSessionId: string | undefined;
