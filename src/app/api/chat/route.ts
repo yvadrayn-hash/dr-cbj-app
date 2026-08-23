@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { detectCrisis, crisisResponse, generateResponse } from "@/lib/chat";
+import { detectCrisis, crisisResponse } from "@/lib/chat";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const systemPrompt = `You are Dr. CBJ's AI wellness assistant for Manor Group Health+ in Jamaica.
@@ -48,96 +48,68 @@ function normalizeMessageContent(content: string): string {
   return normalized.trim();
 }
 
-async function generateQwenResponse(
-  input: string,
-  history: ChatHistoryItem[]
-): Promise<string | null> {
-  const apiKey = process.env.DASHSCOPE_API_KEY;
-  
-  // Safe logging - only log that Qwen was attempted
-  console.log("Qwen attempted");
-  
-  if (!apiKey) {
-    console.log("Qwen failed: missing DASHSCOPE_API_KEY");
-    return null;
-  }
-  
-  // Log that API key is present for Qwen (no value, just presence)
-  console.log("Qwen API key present");
+// Classification of provider failures, mapped to user-safe error states
+type AssistantFailureKind =
+  | "missing_key"
+  | "invalid_key"
+  | "rate_limited"
+  | "timeout"
+  | "provider_error";
 
-  const client = new OpenAI({
-    baseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-    apiKey,
-    defaultHeaders: {
-      "X-DashScope-User-Agent": "Dr. CBJ Mental Wellness",
-    },
-  });
+class AssistantError extends Error {
+  kind: AssistantFailureKind;
+  status: number;
 
-  // Normalize history to plain text only
-  const normalizedHistory = history.map((item) => ({
-    ...item,
-    content: normalizeMessageContent(item.content),
-  }));
-  
-  console.log("Qwen history normalized");
-
-  try {
-    const completion = await client.chat.completions.create({
-      model: "qwen3-coder-next",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...normalizedHistory.map((item) => ({
-          role:
-            item.role === "ASSISTANT"
-              ? ("assistant" as const)
-              : ("user" as const),
-          content: item.content,
-        })),
-        { role: "user", content: input },
-      ],
-      temperature: 0.6,
-      max_tokens: 500,
-    });
-    
-    const responseText = completion.choices[0]?.message.content?.trim() || null;
-    
-    if (responseText) {
-      console.log("Qwen succeeded");
-      // Tag response for debugging (not exposed to user, just in logs)
-      console.log(`Qwen response (debug-tag: [QWEN_SUCCESS]): ${responseText.substring(0, 100)}...`);
-    }
-    
-    return responseText;
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error("Qwen failed:", errorMsg);
-    // Don't log the full error if it contains sensitive data
-    return null;
+  constructor(kind: AssistantFailureKind) {
+    super(`assistant_failure:${kind}`);
+    this.kind = kind;
+    this.status =
+      kind === "missing_key" || kind === "invalid_key"
+        ? 502
+        : kind === "rate_limited"
+          ? 429
+          : kind === "timeout"
+            ? 504
+            : 502;
   }
 }
 
-async function generateOpenRouterResponse(
+function classifyProviderError(error: unknown): AssistantFailureKind {
+  if (error instanceof OpenAI.APIError) {
+    const status = error.status;
+    if (status === 401 || status === 403) return "invalid_key";
+    if (status === 429) return "rate_limited";
+    return "provider_error";
+  }
+  if (
+    error instanceof Error &&
+    (error.name === "AbortError" || error.name === "TimeoutError")
+  ) {
+    return "timeout";
+  }
+  return "provider_error";
+}
+
+// DeepSeek via OpenRouter - the single AI provider for the assistant
+async function generateAssistantResponse(
   input: string,
   history: ChatHistoryItem[]
-): Promise<string | null> {
+): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  
-  // Safe logging
-  console.log("OpenRouter attempted");
-  
+
   if (!apiKey) {
-    console.log("OpenRouter failed: missing OPENROUTER_API_KEY");
-    return null;
+    console.error("Assistant failed: missing OPENROUTER_API_KEY");
+    throw new AssistantError("missing_key");
   }
-  
-  console.log("OpenRouter API key present");
 
   const client = new OpenAI({
     baseURL: "https://openrouter.ai/api/v1",
     apiKey,
     defaultHeaders: {
-      "X-OpenRouter-Title": "Dr. CBJ Mental Wellness",
+      "X-Title": "Dr. CBJ Mental Wellness",
     },
+    timeout: 30_000,
+    maxRetries: 0,
   });
 
   // Normalize history to plain text only
@@ -145,39 +117,44 @@ async function generateOpenRouterResponse(
     ...item,
     content: normalizeMessageContent(item.content),
   }));
-  
-  console.log("OpenRouter history normalized");
 
   try {
-    const completion = await client.chat.completions.create({
-      model: process.env.OPENROUTER_MODEL || "openrouter/auto",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...normalizedHistory.map((item) => ({
-          role:
-            item.role === "ASSISTANT"
-              ? ("assistant" as const)
-              : ("user" as const),
-          content: item.content,
-        })),
-        { role: "user", content: input },
-      ],
-      temperature: 0.6,
-      max_tokens: 500,
-    });
-    
-    const responseText = completion.choices[0]?.message.content?.trim() || null;
-    
-    if (responseText) {
-      console.log("OpenRouter succeeded");
-      console.log(`OpenRouter response (debug-tag: [OR_SUCCESS]): ${responseText.substring(0, 100)}...`);
+    const completion = await client.chat.completions.create(
+      {
+        model: process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...normalizedHistory.map((item) => ({
+            role:
+              item.role === "ASSISTANT"
+                ? ("assistant" as const)
+                : ("user" as const),
+            content: item.content,
+          })),
+          { role: "user", content: input },
+        ],
+        temperature: 0.6,
+        max_tokens: 500,
+      },
+      { signal: AbortSignal.timeout(30_000) }
+    );
+
+    const responseText = completion.choices[0]?.message.content?.trim();
+
+    if (!responseText) {
+      console.error("Assistant failed: empty response from provider");
+      throw new AssistantError("provider_error");
     }
-    
+
+    console.log("Assistant succeeded");
     return responseText;
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error("OpenRouter failed:", errorMsg);
-    return null;
+    if (error instanceof AssistantError) throw error;
+
+    const kind = classifyProviderError(error);
+    // Log only the failure kind - never log request bodies, headers, or keys
+    console.error("Assistant failed:", kind);
+    throw new AssistantError(kind);
   }
 }
 
@@ -195,7 +172,7 @@ export async function POST(request: Request) {
   try {
     // Safe server logging - only log incoming request, no sensitive data
     console.log("POST /api/chat request received");
-    
+
     // Abuse protection for the AI endpoint
     const limit = rateLimit(`chat:${getClientIp(request)}`, 30, 60 * 1000);
     if (!limit.allowed) {
@@ -263,25 +240,14 @@ export async function POST(request: Request) {
       }
 
       const history = recentMessages.reverse();
-      
-      console.log(`Message received, crisis: ${isCrisis}, session: ${sessionId || 'anonymous'}`);
-      
-      // Trace response selection
-      const qwenResponse = await generateQwenResponse(message, history);
-      if (qwenResponse) {
-        console.log("Qwen selected for response");
-        response = qwenResponse;
-      } else {
-        console.log("Qwen returned null, trying OpenRouter...");
-        const openRouterResponse = await generateOpenRouterResponse(message, history);
-        if (openRouterResponse) {
-          console.log("OpenRouter selected for response");
-          response = openRouterResponse;
-        } else {
-          console.log("OpenRouter returned null, using fallback");
-          response = generateResponse(message, history);
-        }
-      }
+
+      console.log(
+        `Message received, crisis: ${isCrisis}, session: ${sessionId || "anonymous"}`
+      );
+
+      // Single provider path: DeepSeek via OpenRouter. On failure, surface a
+      // clear user-safe error state instead of falling back to canned replies.
+      response = await generateAssistantResponse(message, history);
     }
 
     let activeSessionId: string | undefined;
@@ -353,6 +319,26 @@ export async function POST(request: Request) {
       sessionId: activeSessionId || sessionId,
     });
   } catch (error) {
+    if (error instanceof AssistantError) {
+      const userMessages: Record<AssistantFailureKind, string> = {
+        missing_key:
+          "The wellness assistant is temporarily unavailable. Please try again later.",
+        invalid_key:
+          "The wellness assistant is temporarily unavailable. Please try again later.",
+        rate_limited:
+          "The wellness assistant is very busy right now. Please wait a moment and try again.",
+        timeout:
+          "The wellness assistant took too long to respond. Please try again.",
+        provider_error:
+          "The wellness assistant is having trouble responding right now. Please try again in a moment.",
+      };
+
+      return NextResponse.json(
+        { error: userMessages[error.kind] },
+        { status: error.status }
+      );
+    }
+
     console.error("Chat error:", error);
     return NextResponse.json(
       { error: "An error occurred while processing your message." },
